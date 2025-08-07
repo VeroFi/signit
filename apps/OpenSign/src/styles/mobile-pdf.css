@@ -1,0 +1,260 @@
+/* Simple Mobile PDF Optimizations - Clean Approach */
+
+/* Base responsive improvements for all screen sizes */
+* {
+  -webkit-tap-highlight-color: transparent;
+}
+
+/* Prevent iOS zoom on input focus */
+input, textarea, select {
+  font-size: 16px !important;
+}
+
+/* Widget panel at bottom for all screen sizes */
+.w-full.md\:w-\[23\%\] {
+  position: fixed !important;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  height: 25vh;
+  z-index: 1000;
+  background: white;
+  border-top: 1px solid #e5e7eb;
+  border-radius: 16px 16px 0 0;
+  transform: translateY(0);
+  transition: transform 0.3s ease;
+}
+
+.w-full.md\:w-\[23\%\].collapsed {
+  transform: translateY(calc(100% - 50px));
+  overflow: hidden;
+}
+
+/* Add clickable pull handle */
+.w-full.md\:w-\[23\%\]::before {
+  content: '';
+  position: absolute;
+  top: 12px;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 40px;
+  height: 4px;
+  background: #d1d5db;
+  border-radius: 2px;
+  cursor: pointer;
+  z-index: 1001;
+}
+
+/* Make the handle area larger for easier clicking */
+.w-full.md\:w-\[23\%\]::after {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 30px;
+  cursor: pointer;
+  z-index: 1001;
+}
+
+/* Adjust main PDF area for all screen sizes */
+.w-full.md\:w-\[57\%\] {
+  width: 100% !important;
+  margin: 0;
+  padding-bottom: 100px;
+}
+
+/* Improve touch targets on mobile */
+@media (max-width: 767px) {
+
+  .w-full.md\:w-\[23\%\] {
+  position: fixed !important;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  height: 20vh;
+  z-index: 1000;
+  background: white;
+  border-top: 1px solid #e5e7eb;
+  border-radius: 16px 16px 0 0;
+  transform: translateY(0);
+  transition: transform 0.3s ease;
+  }
+
+  .pdf-zoom-mobile {
+  display: flex;
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  flex-direction: row;
+  justify-content: space-around;
+  align-items: center;
+  background: white;
+  border-top: 1px solid #e5e7eb;
+  overflow-x: auto;
+  padding: 12px 16px;
+  z-index: 200;
+  box-shadow: 0 -2px 10px rgba(0, 0, 0, 0.1);
+  gap: 8px;
+  }
+
+  /* Make buttons touch-friendly */
+  button, .op-btn, .btn {
+    min-height: 44px;
+    padding: 8px 12px;
+    touch-action: manipulation;
+  }
+
+  /* Hide page thumbnails on mobile */
+  .op-card > div:first-child {
+    display: none;
+  }
+
+  /* Improve widget drag targets */
+  [draggable="true"] {
+    min-width: 60px;
+    min-height: 44px;
+    touch-action: none;
+    cursor: grab;
+  }
+
+  [draggable="true"]:active {
+    cursor: grabbing;
+    opacity: 0.8;
+  }
+
+  /* Better widget visibility on PDF */
+  .react-draggable {
+    border: 1px solid #3b82f6 !important;
+    border-radius: 4px;
+    background: rgba(59, 130, 246, 0.1);
+  }
+
+  .react-draggable:active {
+    border-color: #1d4ed8 !important;
+    background: rgba(29, 78, 216, 0.2);
+  }
+
+  /* Better scrolling on mobile */
+  .overflow-y-auto {
+    -webkit-overflow-scrolling: touch;
+  }
+
+  /* Improve modal sizing */
+  .modal-box, .modal {
+    max-width: 95vw;
+    max-height: 90vh;
+  }
+
+  /* Add floating action button to expand widget panel */
+  .widget-panel-collapsed::after {
+    content: '⚡';
+    position: fixed;
+    bottom: 20px;
+    right: 20px;
+    width: 56px;
+    height: 56px;
+    background: #3b82f6;
+    color: white;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 24px;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+    z-index: 1002;
+    cursor: pointer;
+    transition: transform 0.2s ease;
+  }
+
+  .widget-panel-collapsed::after:hover {
+    transform: scale(1.1);
+  }
+}
+
+/* Desktop/tablet - keep widget panel at bottom but show page thumbnails */
+@media (min-width: 768px) {
+  .op-card > div:first-child {
+    display: block;
+  }
+
+  /* Desktop widget styling */
+  .react-draggable {
+    border: 1px solid transparent !important;
+    background: transparent !important;
+  }
+
+  .react-draggable:hover {
+    border: 1px solid #3b82f6 !important;
+    background: rgba(59, 130, 246, 0.1) !important;
+  }
+
+  .react-draggable:active,
+  .react-draggable.react-draggable-dragging {
+    border-color: #1d4ed8 !important;
+    background: rgba(29, 78, 216, 0.2) !important;
+  }
+
+  /* Desktop drag targets */
+  [draggable="true"] {
+    min-width: auto;
+    min-height: auto;
+    cursor: grab;
+  }
+
+  [draggable="true"]:active {
+    cursor: grabbing;
+    opacity: 1;
+  }
+}
+
+/* Touch improvements for drag and drop */
+.react-draggable {
+  touch-action: none;
+}
+
+.react-resizable-handle {
+  touch-action: none;
+}
+
+/* Improve signature canvas touch */
+canvas {
+  touch-action: none;
+}
+
+/* Better pinch zoom support */
+.pdf-page {
+  touch-action: pan-x pan-y pinch-zoom;
+}
+
+ /* Improve modal sizing */
+.modal-box, .modal {
+  max-width: 95vw;
+  max-height: 90vh;
+}
+
+/* Page-Specific Mobile PDF Styles */
+
+/* Mobile customizations for each page */
+@media (max-width: 767px) {
+  .placeholder-sign-pdf-container {
+    height: 25vh;
+  }
+  
+  .signyourself-pdf-container {
+    max-height: 15vh;
+  }
+}
+
+/* Tablet customizations */
+@media (min-width: 768px) and (max-width: 1024px) {
+  .placeholder-sign-pdf-container {
+    width: 60% !important;
+  }
+  
+  .signyourself-pdf-container {
+    width: 55% !important;
+  }
+}
+

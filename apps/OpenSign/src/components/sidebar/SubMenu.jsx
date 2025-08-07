@@ -8,11 +8,12 @@ const Submenu = ({ item, closeSidebar, toggleSubmenu, submenuOpen }) => {
   const drivename = appName === "OpenSign™" ? "OpenSign™" : "";
   const { t } = useTranslation();
   const { title, icon, children } = item;
+  const color = "text-white";
   return (
     <li role="none" className="my-0.5">
       <button
         onClick={() => toggleSubmenu(item.title)}
-        className="flex gap-x-5 items-center justify-start text-left p-3 text-base-content hover:text-base-content focus:bg-base-300 hover:bg-base-300 hover:no-underline focus:outline-none"
+        className={`flex gap-x-5 items-center justify-start text-left p-3 ${color} hover:text-base-content focus:bg-secondary hover:bg-secondary hover:no-underline focus:outline-none`}
         aria-expanded={submenuOpen}
         aria-haspopup="true"
         aria-controls={`submenu-${title}`}
@@ -46,8 +47,8 @@ const Submenu = ({ item, closeSidebar, toggleSubmenu, submenuOpen }) => {
                 }
                 className={({ isActive }) =>
                   `${
-                    isActive ? "bg-base-300 text-base-content " : ""
-                  } pl-4 flex items-center gap-x-5 py-2 text-sm cursor-pointer text-base-content hover:text-base-content focus:bg-base-300 hover:bg-base-300 hover:no-underline focus:outline-none`
+                    isActive ? "op-bg-secondary text-white " : ""
+                  } pl-4 flex items-center gap-x-5 py-2 text-sm cursor-pointer text-white hover:text-based-content focus:bg-secondary hover:bg-secondary hover:no-underline focus:outline-none`
                 }
                 onClick={closeSidebar}
                 role="menuitem"

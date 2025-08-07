@@ -59,7 +59,7 @@ const Sidebar = ({ isOpen, closeSidebar }) => {
   };
   return (
     <aside
-      className={`absolute lg:relative bg-base-100 h-screen overflow-y-auto transition-all z-[500] shadow-lg hide-scrollbar
+      className={`absolute lg:relative bg-primary h-screen overflow-y-auto transition-all z-[500] shadow-lg hide-scrollbar
      ${isOpen ? "w-full md:w-[300px]" : "w-0"}`}
     >
       <div className="flex px-2 py-3 gap-2 items-center shadow-md">
@@ -76,13 +76,13 @@ const Sidebar = ({ isOpen, closeSidebar }) => {
         <div>
           <p
             onClick={handleProfile}
-            className="text-[14px] font-bold text-base-content cursor-pointer"
+            className="text-[14px] font-bold cursor-pointer text-white"
           >
             {username}
           </p>
           <p
             onClick={handleProfile}
-            className={`cursor-pointer text-[12px] text-base-content ${
+            className={`cursor-pointer text-[12px] text-white ${
               tenantname ? "mt-2" : ""
             }`}
           >
@@ -119,9 +119,9 @@ const Sidebar = ({ isOpen, closeSidebar }) => {
           )}
         </ul>
       </nav>
-        <footer className="mt-4 flex justify-center items-center text-[25px] text-base-content gap-3">
+        {/* <footer className="mt-4 flex justify-center items-center text-[25px] text-base-content gap-3">
           <SocialMedia />
-        </footer>
+        </footer> */}
     </aside>
   );
 };

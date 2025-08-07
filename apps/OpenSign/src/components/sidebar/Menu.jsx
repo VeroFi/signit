@@ -17,8 +17,8 @@ const Menu = ({ item, isOpen, closeSidebar }) => {
         }
         className={({ isActive }) =>
           `${
-            isActive ? " bg-base-300 text-base-content" : ""
-          } flex gap-x-5 items-center justify-start text-left p-3 text-base-content hover:text-base-content focus:bg-base-300 hover:bg-base-300 hover:no-underline focus:outline-none`
+            isActive ? "op-bg-secondary text-white" : ""
+          } flex gap-x-5 items-center justify-start text-left p-3 text-white hover:text-white focus:bg-secondary hover:bg-secondary hover:no-underline focus:outline-none`
         }
         onClick={closeSidebar}
         tabIndex={isOpen ? 0 : -1}

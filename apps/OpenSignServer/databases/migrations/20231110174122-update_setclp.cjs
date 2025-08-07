@@ -3,11 +3,24 @@
  * @param {Parse} Parse
  */
 exports.up = async Parse => {
-  const userschema = new Parse.Schema('_User');
-  userschema.addString('Name').addString('phone').addString('ProfilePic');
-  const index = { phone: 1 };
-  userschema.addIndex('phone_1', index);
-  await userschema.update(null, { useMasterKey: true });
+  try {
+    const userschema = new Parse.Schema('_User');
+    userschema.addString('Name').addString('phone').addString('ProfilePic');
+    const index = { phone: 1 };
+    userschema.addIndex('phone_1', index);
+    await userschema.update(null, { useMasterKey: true });
+  } catch (error) {
+    // Handle the case where index already exists
+    if (error.message && error.message.includes('Index phone_1 exists')) {
+      console.log('Index phone_1 already exists, skipping index creation...');
+      // Just update the schema without the index
+      const userschema = new Parse.Schema('_User');
+      userschema.addString('Name').addString('phone').addString('ProfilePic');
+      await userschema.update(null, { useMasterKey: true });
+    } else {
+      throw error;
+    }
+  }
 
   const contactbook = new Parse.Schema('contracts_Contactbook');
   contactbook

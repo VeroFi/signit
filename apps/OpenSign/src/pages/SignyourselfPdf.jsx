@@ -1,4 +1,5 @@
 import { useState, useRef, useEffect } from "react";
+import { useWidgetPanel } from "../hook/useWidgetPanel";
 import { PDFDocument } from "pdf-lib";
 import "../styles/signature.css";
 import Parse from "parse";
@@ -75,6 +76,9 @@ import CellsSettingModal from "../components/pdf/CellsSettingModal";
 function SignYourSelf() {
   const { t } = useTranslation();
   const { docId } = useParams();
+  
+  // Enable widget panel toggle functionality
+  useWidgetPanel();
   const dispatch = useDispatch();
   const isShowModal = useSelector((state) => state.widget.isShowModal);
   const saveSignCheckbox = useSelector(
@@ -1403,7 +1407,7 @@ function SignYourSelf() {
                 </div>
               </div>
             </div>
-            <div className="w-full md:w-[23%] bg-base-100 overflow-y-auto hide-scrollbar">
+            <div className="signyourself-pdf-container w-full md:w-[23%] bg-base-100 overflow-y-auto hide-scrollbar">
               <div className={`max-h-screen`}>
                 {!isCompleted ? (
                   <div>

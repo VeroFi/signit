@@ -1,4 +1,5 @@
 import { useState, useRef, useEffect } from "react";
+import { useWidgetPanel } from "../hook/useWidgetPanel";
 import { PDFDocument } from "pdf-lib";
 import "../styles/signature.css";
 import Parse from "parse";
@@ -74,6 +75,9 @@ function PdfRequestFiles(
 ) {
   const { t } = useTranslation();
   const dispatch = useDispatch();
+  
+  // Enable widget panel toggle functionality
+  useWidgetPanel();
   const isShowModal = useSelector((state) => state.widget.isShowModal);
   const saveSignCheckbox = useSelector(
     (state) => state.widget.saveSignCheckbox

@@ -3,6 +3,7 @@ import { useTranslation } from "react-i18next";
 const DashboardButton = lazy(() => import("./DashboardButton"));
 const DashboardCard = lazy(() => import("./DashboardCard"));
 const DashboardReport = lazy(() => import("./DashboardReport"));
+const TabbedDashboardReport = lazy(() => import("./TabbedDashboardReport"));
 const buttonList = [
   {
     label: "Sign yourself",
@@ -64,6 +65,20 @@ const GetDashboard = (props) => {
           </div>
         );
       }
+      case "tabbedReport": {
+        return (
+          <div data-tut={col.widget.data.tourSection}>
+            <Suspense fallback={<div>please wait</div>}>
+              <div className="mb-3 md:mb-0">
+                <TabbedDashboardReport
+                  reportIds={col.widget.reportIds}
+                  labels={col.widget.labels}
+                />
+              </div>
+            </Suspense>
+          </div>
+        );
+      }
       default:
         return <></>;
     }
@@ -93,6 +108,18 @@ const GetDashboard = (props) => {
           <Suspense fallback={<div>please wait</div>}>
             <div className="mb-3 md:mb-0">
               <DashboardReport Record={col.widget} />
+            </div>
+          </Suspense>
+        );
+      }
+      case "tabbedReport": {
+        return (
+          <Suspense fallback={<div>please wait</div>}>
+            <div className="mb-3 md:mb-0">
+              <TabbedDashboardReport
+                reportIds={col.widget.reportIds}
+                labels={col.widget.labels}
+              />
             </div>
           </Suspense>
         );

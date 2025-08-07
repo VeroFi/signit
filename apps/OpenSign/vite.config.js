@@ -42,7 +42,14 @@ export default defineConfig(({ command, mode }) => {
     },
     server: {
       port: process.env.PORT || 3000, // Same port as CRA
-      open: true
+      open: true,
+      proxy: {
+        '/api': {
+          target: 'http://localhost:8080',
+          changeOrigin: true,
+          rewrite: (path) => path.replace(/^\/api/, '')
+        }
+      }
     },
     test: {
       environment: "jsdom",

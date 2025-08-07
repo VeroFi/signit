@@ -1,4 +1,5 @@
 import React, { useState, useRef, useEffect } from "react";
+import { useWidgetPanel } from "../hook/useWidgetPanel";
 import axios from "axios";
 import Parse from "parse";
 import "../styles/signature.css";
@@ -75,6 +76,9 @@ import WidgetsValueModal from "../components/pdf/WidgetsValueModal.jsx";
 function PlaceHolderSign() {
   const { t } = useTranslation();
   const copyUrlRef = useRef(null);
+  
+  // Enable widget panel toggle functionality
+  useWidgetPanel();
   const isShowModal = useSelector((state) => state.widget.isShowModal);
   const appName =
     "OpenSign™";
@@ -2536,7 +2540,7 @@ function PlaceHolderSign() {
               </div>
 
               {/* signature button */}
-              <div className="w-full md:w-[23%] bg-base-100 overflow-y-auto hide-scrollbar">
+              <div className="placeholder-sign-pdf-container w-full md:w-[23%] bg-base-100 overflow-y-auto hide-scrollbar">
                 <div className={`max-h-screen`}>
                   {isMobile ? (
                     <div>

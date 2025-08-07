@@ -12,13 +12,13 @@ const ModalUi = ({
   position
 }) => {
   const width = reduceWidth;
-  const isBottom = position === "bottom" ? "items-end pb-2" : "";
+  const isCenter = position === "items-center justify center" ? "items-end pb-2" : "";
   return (
     <>
       {isOpen && (
         <dialog
           id="selectSignerModal"
-          className={`${isBottom} op-modal op-modal-open`}
+          className={`${isCenter} op-modal op-modal-open`}
         >
           <div
             className={`${

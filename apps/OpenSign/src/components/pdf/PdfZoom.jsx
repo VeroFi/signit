@@ -152,7 +152,7 @@ function PdfZoom(props) {
 
   return (
     <>
-      <span className="hidden md:flex flex-col gap-1 text-center md:w-[5%] mt-[42px]">
+      <span className="pdf-zoom-mobile hidden md:flex flex-col gap-1 text-center md:w-[5%] mt-[42px]">
         {!props.isDisableEditTools && (
           <>
             <span
