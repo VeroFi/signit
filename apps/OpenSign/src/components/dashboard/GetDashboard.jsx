@@ -130,11 +130,13 @@ const GetDashboard = (props) => {
   };
   return (
     <div>
-      <div className="mb-3">
-        <div
-          data-tut={"tourbutton"}
-          className="flex flex-col md:flex-row gap-4"
-        >
+      <div className="mb-3"></div>
+      <div className="grid grid-cols-12 w-full gap-x-4">
+        <div data-tut={"tourbutton"} className="col-span-12 md:col-span-6 lg:col-span-6 mb-3"> 
+          <div
+            data-tut={"tourbutton"}
+            className="flex flex-col md:flex-row gap-4"
+          >
           {buttonList.map((btn) => (
             <Button
               key={btn.label}
@@ -144,9 +146,10 @@ const GetDashboard = (props) => {
               icon={btn.icon}
             />
           ))}
+          </div>    
         </div>
-      </div>
-      <div className="grid grid-cols-12 w-full gap-x-4">
+
+
         {props?.dashboard?.columns?.map((col, i) =>
           col.widget.data && col.widget.data.tourSection ? (
             <div key={i} className={col?.colsize}>

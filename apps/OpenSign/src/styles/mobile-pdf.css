@@ -107,9 +107,9 @@ input, textarea, select {
   }
 
   /* Hide page thumbnails on mobile */
-  .op-card > div:first-child {
+  /* .op-card > div:first-child {
     display: none;
-  }
+  } */
 
   /* Improve widget drag targets */
   [draggable="true"] {
@@ -257,5 +257,3 @@ canvas {
     width: 55% !important;
   }
 }
-
-/* Test Commit */

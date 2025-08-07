@@ -3,7 +3,7 @@ const dashboardJson = [
     id: "35KBoSgoAK",
     columns: [
       {
-        colsize: "col-span-12 md:col-span-6 lg:col-span-6",
+        colsize: "col-span-6 md:col-span-3 lg:col-span-3",
         widget: {
           type: "Card",
           icon: "fa-light fa-signature",
@@ -24,7 +24,7 @@ const dashboardJson = [
         }
       },
       {
-        colsize: "col-span-12 md:col-span-6 lg:col-span-6",
+        colsize: "col-span-6 md:col-span-3 lg:col-span-3",
         widget: {
           type: "Card",
           icon: "fa-light fa-sign-out-alt",
