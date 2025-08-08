@@ -33,4 +33,4 @@ EXPOSE 3000
 ENTRYPOINT ["./entrypoint.sh"]
 
 # Run the application
-CMD ["npm", "start"]
+CMD ["npm", "run", "start"]
