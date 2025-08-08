@@ -28,7 +28,7 @@ if (useLocal !== 'true') {
     const s3Options = {
       bucket: process.env.DO_SPACE,
       baseUrl: process.env.DO_BASEURL,
-      fileAcl: 'none',
+      fileAcl: 'public-read',
       region: process.env.DO_REGION,
       directAccess: true,
       preserveFileName: true,
