@@ -1,0 +1,85 @@
+# Digital Ocean App Platform Configuration
+name: opensign
+services:
+  # Backend Parse Server
+  - name: opensign-server
+    source_dir: /apps/OpenSignServer
+    github:
+      repo: YOUR_USERNAME/YOUR_REPO_NAME
+      branch: main
+    dockerfile_path: apps/OpenSignServer/Dockerhubfile
+    http_port: 8080
+    instance_count: 1
+    instance_size_slug: basic-xxs
+    routes:
+      - path: /api
+    envs:
+      - key: NODE_ENV
+        value: production
+      - key: PARSE_APP_ID
+        value: opensign
+      - key: MASTER_KEY
+        value: XnAadwKxxByMr
+      - key: APP_ID
+        value: opensign
+      - key: appName
+        value: open_sign_server
+      - key: PARSE_MOUNT
+        value: /app
+      - key: MONGODB_URI
+        value: mongodb+srv://verofillc:l70Za9kNw63EDM6q@signit-cluster.f1ydjcj.mongodb.net/?retryWrites=true&w=majority&appName=signit-cluster
+      - key: DO_SPACE
+        value: signit-files
+      - key: DO_ENDPOINT
+        value: https://sfo3.digitaloceanspaces.com
+      - key: DO_BASEURL
+        value: https://signit-files.sfo3.digitaloceanspaces.com
+      - key: DO_ACCESS_KEY_ID
+        value: DO801XC2VEQU3CBWL2VN
+      - key: DO_SECRET_ACCESS_KEY
+        value: DJBTjH900oHVEfXN2Kfbxf6y290K7WLqeLrd5xgz2QY
+      - key: DO_REGION
+        value: sfo3
+      - key: USE_LOCAL
+        value: false
+      - key: SMTP_ENABLE
+        value: true
+      - key: SMTP_HOST
+        value: smtp.gmail.com
+      - key: SMTP_PORT
+        value: 587
+      - key: SMTP_USER_EMAIL
+        value: verofillc@gmail.com
+      - key: SMTP_PASS
+        value: gknxsncoorrrbdcw
+      - key: PFX_BASE64
+        value: 'MIIKCQIBAzCCCc8GCSqGSIb3DQEHAaCCCcAEggm8MIIJuDCCBG8GCSqGSIb3DQEHBqCCBGAwggRcAgEAMIIEVQYJKoZIhvcNAQcBMBwGCiqGSIb3DQEMAQYwDgQIpumubFabBWACAggAgIIEKDqHS7Icd5MzIBk1dBokGK2s+5a2fA4308WA1QzEWmczqVYIz6lYmW8qsiZIw4PFkRzdIx1+zCmP8jgWiiqh5RKnbHYmh1JPNyx9SqmUDILDXmjgKxO9agRw9LXge4hgRL7YW0TxYZYw4EeXV9Yr7kcOq9DoO2MoRikJ+2Tuvvq/hfuV9zFHsz4jpf7W95k1IeH6bZ92klz5R1e/EK8JuHy592i/u+BxxW1vTkiPpTaHD6s9'
+      - key: PASS_PHRASE
+        value: opensign
+
+  # Frontend React App  
+  - name: opensign-frontend
+    source_dir: /apps/OpenSign
+    github:
+      repo: YOUR_USERNAME/YOUR_REPO_NAME
+      branch: main
+    dockerfile_path: apps/OpenSign/Dockerhubfile
+    http_port: 3000
+    instance_count: 1
+    instance_size_slug: basic-xxs
+    routes:
+      - path: /
+    envs:
+      - key: NODE_ENV
+        value: production
+      - key: REACT_APP_APPID
+        value: opensign
+      - key: GENERATE_SOURCEMAP
+        value: false
+
+# Optional: Custom domain configuration
+# domains:
+#   - domain: your-domain.com
+#     type: PRIMARY
+#   - domain: www.your-domain.com
+#     type: ALIAS
