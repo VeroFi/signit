@@ -30,3 +30,5 @@ node_modules
 # Emacs
 *~
 .eslintcache
+
+.env.production
