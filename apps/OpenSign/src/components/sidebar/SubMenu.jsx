@@ -4,8 +4,8 @@ import { NavLink } from "react-router";
 
 const Submenu = ({ item, closeSidebar, toggleSubmenu, submenuOpen }) => {
   const appName =
-    "OpenSign™";
-  const drivename = appName === "OpenSign™" ? "OpenSign™" : "";
+    "Signit™";
+  const drivename = appName === "Signit™" ? "Signit™" : "";
   const { t } = useTranslation();
   const { title, icon, children } = item;
   const color = "text-white";

@@ -1,7 +1,9 @@
 #!/bin/sh
 
 ENV_FILE=./build/env.js
-DOTENV_FILE=./.env.production # ✅ use .env.production
+
+# ✅ use .env.production
+DOTENV_FILE=./.env.production
 
 echo "Generating runtime env file at $ENV_FILE..."
 

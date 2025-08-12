@@ -30,7 +30,7 @@ const EditTemplate = ({
   setPdfBase64Url,
 }) => {
   const appName =
-    "OpenSign™";
+    "Signit™";
   const { t } = useTranslation();
   const inputFileRef = useRef(null);
   const [formData, setFormData] = useState({

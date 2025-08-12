@@ -15,7 +15,7 @@ import { useTranslation } from "react-i18next";
 
 const HomeLayout = () => {
   const appName =
-    "OpenSign™";
+    "Signit™";
   const { t, i18n } = useTranslation();
   const navigate = useNavigate();
   const location = useLocation();

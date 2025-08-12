@@ -1,0 +1,78 @@
+services:
+  # Backend Parse Server - Build locally to test your changes
+  server:
+    build:
+      context: ./apps/OpenSignServer
+      dockerfile: Dockerhubfile
+    container_name: OpenSignServer-local
+    ports:
+      - "8080:8080"
+    env_file: 
+      - ./apps/OpenSignServer/.env.production
+    environment:
+      - NODE_ENV=production
+      - PORT=8080
+      # Override MongoDB to use Atlas instead of local mongo
+      - MONGODB_URI=mongodb+srv://verofillc:l70Za9kNw63EDM6q@signit-cluster.f1ydjcj.mongodb.net/?retryWrites=true&w=majority&appName=signit-cluster
+      - SERVER_URL=http://localhost:3001/api/app
+      - PUBLIC_URL=http://localhost:3001
+    networks:
+      - app-network
+    # Remove mongo dependency since using Atlas
+    # depends_on:
+    #   - mongo
+
+  # Frontend React App - Build locally to test your changes
+  client:
+    build:
+      context: ./apps/OpenSign
+      dockerfile: Dockerhubfile
+    container_name: OpenSign-local
+    depends_on:
+      - server
+    env_file: 
+      - ./apps/OpenSign/.env.production
+    environment:
+      - NODE_ENV=production
+      - REACT_APP_SERVERURL=http://localhost:3001/api/app
+      - REACT_APP_APPID=opensign
+      - GENERATE_SOURCEMAP=false
+    ports:
+      - "3000:3000"
+    networks:
+      - app-network
+
+  # Reverse Proxy - Routes traffic
+  caddy:
+    image: caddy:latest
+    container_name: caddy-local
+    ports:
+      - "3001:3001"
+      - "80:80"
+      - "443:443"
+      - "443:443/udp"
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile
+      - caddy_data:/data
+      - caddy_config:/config
+    networks:
+      - app-network
+    environment:
+      - HOST_URL=localhost:3001
+    depends_on:
+      - client
+      - server
+
+  # Remove MongoDB since using Atlas
+  # mongo:
+  #   image: mongo:latest
+  #   ...
+
+networks:
+  app-network:
+    driver: bridge
+
+volumes:
+  caddy_data:
+  caddy_config:
+  opensign-files:

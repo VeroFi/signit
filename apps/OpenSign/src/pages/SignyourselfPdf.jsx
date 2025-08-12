@@ -85,7 +85,7 @@ function SignYourSelf() {
     (state) => state.widget.saveSignCheckbox
   );
   const appName =
-    "OpenSign™";
+    "Signit™";
   const divRef = useRef(null);
   const nodeRef = useRef(null);
   const pdfRef = useRef();
@@ -877,6 +877,17 @@ function SignYourSelf() {
   const tourConfig = [
     {
       selector: '[data-tut="addWidgets"]',
+      content: () => (
+        <TourContentWithBtn
+          message={t("tour-mssg.signyour-self-1")}
+          isChecked={handleDontShow}
+        />
+      ),
+      position: "top",
+      style: { fontSize: "13px" }
+    },
+        {
+      selector: '[data-tut="addWidgetsMobile"]',
       content: () => (
         <TourContentWithBtn
           message={t("tour-mssg.signyour-self-1")}

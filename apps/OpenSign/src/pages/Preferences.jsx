@@ -24,7 +24,7 @@ import DateFormatSelector from "../components/shared/fields/DateFormatSelector";
 
 const Preferences = () => {
   const appName =
-    "OpenSign™";
+    "Signit™";
   const { t } = useTranslation();
   const editorRef = useRef();
   const editorRefCom = useRef();

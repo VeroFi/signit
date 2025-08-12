@@ -72,7 +72,7 @@ input, textarea, select {
   bottom: 0;
   left: 0;
   right: 0;
-  height: 20vh;
+  height: 25vh;
   z-index: 1000;
   background: white;
   border-top: 1px solid #e5e7eb;
@@ -101,15 +101,16 @@ input, textarea, select {
 
   /* Make buttons touch-friendly */
   button, .op-btn, .btn {
+    /* height: 9vh; */
     min-height: 44px;
     padding: 8px 12px;
     touch-action: manipulation;
   }
 
   /* Hide page thumbnails on mobile */
-  /* .op-card > div:first-child {
+  .op-card > div:first-child {
     display: none;
-  } */
+  }
 
   /* Improve widget drag targets */
   [draggable="true"] {
@@ -148,8 +149,8 @@ input, textarea, select {
   }
 
   /* Add floating action button to expand widget panel */
-  .widget-panel-collapsed::after {
-    content: '⚡';
+  /* .widget-panel-collapsed::after {
+    content: '';
     position: fixed;
     bottom: 20px;
     right: 20px;
@@ -170,7 +171,7 @@ input, textarea, select {
 
   .widget-panel-collapsed::after:hover {
     transform: scale(1.1);
-  }
+  } */
 }
 
 /* Desktop/tablet - keep widget panel at bottom but show page thumbnails */

@@ -355,7 +355,7 @@
   "verify-email-1": "Verify email",
   "resend": "Resend",
   "contact-details": "Contact details",
-  "verify-email": "Please verify your email to continue. This is a one-time step to confirm the email associated with your OpenSign account.",
+  "verify-email": "Please verify your email to continue. This is a one-time step to confirm the email associated with your Signit account.",
   "send-otp": " Send OTP",
   "otp-placeholder": "Enter verification code received over email",
   "loading-doc": "Loading document..",

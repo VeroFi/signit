@@ -1001,6 +1001,17 @@ const TemplatePlaceholder = () => {
       style: { fontSize: "13px" }
     },
     {
+      selector: '[data-tut="addWidgetsMobile"]',
+      content: () => (
+        <TourContentWithBtn
+          message={t("tour-mssg.template-placeholder-3")}
+          isChecked={handleDontShow}
+        />
+      ),
+      position: "top",
+      style: { fontSize: "13px" }
+    },
+    {
       selector: '[data-tut="reactourThird"]',
       content: () => (
         <TourContentWithBtn
