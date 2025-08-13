@@ -31,7 +31,7 @@ export default function TourContentWithBtn({ message, isChecked, video }) {
           checked={isCheck}
           onChange={handleCheck}
         />
-        <span className="#787878 text-[12px]">{t("tour-content")}</span>
+        <span className="#787878 text-[14px] md:text-[12px]">{t("tour-content")}</span>
       </label>
     </div>
   );

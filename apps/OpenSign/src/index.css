@@ -26,6 +26,24 @@ body {
     width: 17px !important;
     padding-left: 3px  !important;
   }
+
+  /* div[data-tour-elem="controls"] {
+    display: flex !important;
+    justify-content: space-between !important;
+    align-items: center !important;
+  }
+
+  nav[data-tour-elem="navigation"] {
+    justify-content: center !important;
+    flex-wrap: nowrap !important;
+    display: flex !important;
+  }
+
+  button[data-tour-elem="dot"] {
+    max-height: 10% !important; 
+    margin: 0 6px !important;
+    flex-shrink: 0 !important;
+  } */
 }
 
 /* below css class replace bootstrap background color with daisy */

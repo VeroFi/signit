@@ -17,7 +17,7 @@ input, textarea, select {
   left: 0;
   right: 0;
   height: 25vh;
-  z-index: 1000;
+  z-index: 50;
   background: white;
   border-top: 1px solid #e5e7eb;
   border-radius: 16px 16px 0 0;
@@ -73,7 +73,7 @@ input, textarea, select {
   left: 0;
   right: 0;
   height: 25vh;
-  z-index: 1000;
+  z-index: 50;
   background: white;
   border-top: 1px solid #e5e7eb;
   border-radius: 16px 16px 0 0;
@@ -94,22 +94,19 @@ input, textarea, select {
   border-top: 1px solid #e5e7eb;
   overflow-x: auto;
   padding: 12px 16px;
-  z-index: 200;
+  z-index: 20;
   box-shadow: 0 -2px 10px rgba(0, 0, 0, 0.1);
   gap: 8px;
   }
 
   /* Make buttons touch-friendly */
   button, .op-btn, .btn {
-    /* height: 9vh; */
-    min-height: 44px;
-    padding: 8px 12px;
     touch-action: manipulation;
   }
 
   /* Hide page thumbnails on mobile */
   .op-card > div:first-child {
-    display: none;
+    /* display: none; */
   }
 
   /* Improve widget drag targets */
@@ -149,7 +146,7 @@ input, textarea, select {
   }
 
   /* Add floating action button to expand widget panel */
-  /* .widget-panel-collapsed::after {
+  .widget-panel-collapsed::after {
     content: '';
     position: fixed;
     bottom: 20px;
@@ -171,7 +168,71 @@ input, textarea, select {
 
   .widget-panel-collapsed::after:hover {
     transform: scale(1.1);
-  } */
+  }
+}
+
+/* Smooth transitions for responsive widget list */
+.widget-list-responsive {
+  transition: all 0.3s ease-in-out;
+}
+
+.widget-list-responsive * {
+  transition: all 0.3s ease-in-out;
+}
+
+/* Mobile widget list - fill more container space */
+@media (max-width: 767px) {
+  .widget-list-responsive {
+    height: calc(100% - 10px) !important; /* Fill container height minus minimal padding */
+  }
+
+  .widget-navbar {
+    height: 100%;
+    min-height: 120px;
+    transform: translateY(0);
+    transition: transform 0.3s ease;
+  }
+  
+  /* Transform widget-navbar when popup is collapsed */
+  .collapsed .widget-navbar {
+    transform: translateY(calc(100% - 50px));
+  }
+
+  .navbar-container {
+    height: 75%; /* Adjust navbar container height for mobile */
+  }
+
+  .widget-button-text {
+    display: none;
+  }
+
+  .widget-button {
+    min-width: 50px;
+    width: auto;
+    min-height: 60px;
+    
+    padding: 8px;
+  }
+
+  .widget-button .text-\[20px\]{
+    display: flex;
+    width: 100%;
+    height: 100%;
+  }
+}
+
+/* Ensure proper scrolling behavior for desktop widget list */
+@media (min-width: 768px) {
+  .widget-list-responsive {
+    height: 100% !important;
+    max-height: calc(100vh - 200px) !important;
+    overflow-y: auto !important;
+    overflow-x: visible !important;
+    flex-direction: column !important;
+    white-space: normal !important;
+    padding: 15px !important;
+    padding-top: 16px !important;
+  }
 }
 
 /* Desktop/tablet - keep widget panel at bottom but show page thumbnails */
@@ -240,7 +301,7 @@ canvas {
 /* Mobile customizations for each page */
 @media (max-width: 767px) {
   .placeholder-sign-pdf-container {
-    height: 25vh;
+    max-height: 20vh;
   }
   
   .signyourself-pdf-container {

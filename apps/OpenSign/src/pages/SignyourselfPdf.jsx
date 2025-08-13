@@ -886,17 +886,6 @@ function SignYourSelf() {
       position: "top",
       style: { fontSize: "13px" }
     },
-        {
-      selector: '[data-tut="addWidgetsMobile"]',
-      content: () => (
-        <TourContentWithBtn
-          message={t("tour-mssg.signyour-self-1")}
-          isChecked={handleDontShow}
-        />
-      ),
-      position: "top",
-      style: { fontSize: "13px" }
-    },
     {
       selector: '[data-tut="reactourSecond"]',
       content: () => (
@@ -1418,7 +1407,7 @@ function SignYourSelf() {
                 </div>
               </div>
             </div>
-            <div className="signyourself-pdf-container w-full md:w-[23%] bg-base-100 overflow-y-auto hide-scrollbar">
+            <div className="signyourself-pdf-container w-full md:w-[23%] bg-base-100 overflow-y-auto md:overflow-x-auto hide-scrollbar">
               <div className={`max-h-screen`}>
                 {!isCompleted ? (
                   <div>

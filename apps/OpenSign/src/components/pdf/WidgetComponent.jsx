@@ -171,7 +171,7 @@ function WidgetComponent(props) {
     <>
       {isMobile ? (
         !props.isMailSend && (
-          <div id="navbar" className="fixed z-[99] bottom-0 right-0 w-full">
+          <div id="navbar" className="navbar-container fixed z-[99] bottom-0 right-0 w-full">
             {props.isSigners && (
               <div className="w-full mb-[5px] flex justify-center items-center gap-1">
                 <div className="w-full ml-[5px]" onClick={() => handleModal()}>
@@ -217,9 +217,9 @@ function WidgetComponent(props) {
 
             <div
               data-tut="addWidgets"
-              className="bg-base-100 border-[2px] border-t-primary"
+              className="widget-navbar bg-base-100 border-[2px] border-t-primary"
             >
-              <div className="flex whitespace-nowrap overflow-x-scroll pt-[10px] pb-[5px] pr-[5px]">
+              <div className="widget-list-responsive flex whitespace-nowrap overflow-x-scroll pt-[10px] pb-[5px] pr-[5px] md:flex-col md:whitespace-normal md:overflow-x-visible md:overflow-y-auto md:p-[15px] md:pt-4 md:h-full md:max-h-[calc(100vh-200px)]">
                 <WidgetList
                   updateWidgets={updateWidgets}
                   handleDivClick={props.handleDivClick}
@@ -243,7 +243,7 @@ function WidgetComponent(props) {
             <span>{t("fields")}</span>
           </div>
 
-          <div className="p-[15px] flex flex-col pt-4" data-tut="addWidgets">
+          <div className="widget-list-responsive flex whitespace-nowrap overflow-x-scroll pt-[10px] pb-[5px] pr-[5px] md:flex-col md:whitespace-normal md:overflow-x-visible md:overflow-y-auto md:p-[15px] md:pt-4 md:h-full md:max-h-[calc(100vh-200px)]" data-tut="addWidgets">
             <WidgetList
               updateWidgets={updateWidgets}
               handleDivClick={props.handleDivClick}

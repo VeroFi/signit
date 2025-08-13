@@ -1,0 +1,25 @@
+/* Signit Logo Custom Styling */
+
+/* Custom font declaration */
+@font-face {
+  font-family: 'Barabara Final';
+  src: url('../assets/fonts/barabara-final.otf') format('opentype');
+  font-weight: normal;
+  font-style: normal;
+  font-display: swap;
+}
+
+.signit-logo {
+  font-family: 'Barabara Final', 'Poppins', 'Helvetica', sans-serif;
+  
+  /* Additional styling */
+  font-weight: 700;
+  letter-spacing: -0.5px;
+  text-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+  transition: all 0.2s ease;
+}
+
+.signit-logo:hover {
+  transform: scale(1.02);
+  text-shadow: 0 2px 6px rgba(0, 0, 0, 0.15);
+}

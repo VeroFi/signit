@@ -12,6 +12,7 @@ import {
 } from "../constant/Utils";
 import { useTranslation } from "react-i18next";
 import { appInfo } from "../constant/appinfo";
+import "../styles/signit-logo.css";
 
 const Header = ({ showSidebar, setIsMenu, isConsole }) => {
   const { t, i18n } = useTranslation();
@@ -124,7 +125,7 @@ const Header = ({ showSidebar, setIsMenu, isConsole }) => {
           </button>
         </div>
         <div className="flex-1 ml-2">
-          <div className="h-[25px] md:h-[40px] w-auto overflow-hidden">
+          {/* <div className="h-[25px] md:h-[40px] w-auto overflow-hidden">
             {applogo && (
               <img
                 className="object-contain h-full w-auto"
@@ -136,6 +137,11 @@ const Header = ({ showSidebar, setIsMenu, isConsole }) => {
                 alt="logo"
               />
             )}
+          </div> */}
+          <div className="h-[40px] md:h-[40px] w-auto overflow-hidden flex items-center">
+            <h1 className="signit-logo text-2xl md:text-3xl font-bold text-primary">
+              SIGNIT
+            </h1>
           </div>
         </div>
         <div id="profile-menu" className="flex-none gap-2">
