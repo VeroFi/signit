@@ -1,12 +1,14 @@
 services:
   server:
-    image: opensign/opensignserver:main
+    build:
+      context: ./apps/OpenSignServer
+      dockerfile: Dockerhubfile
     container_name: OpenSignServer-container
     volumes:
       - opensign-files:/usr/src/app/files
     ports:
       - "8080:8080"
-    env_file: ./apps/OpenSignServer/.env.production
+    env_file: .env.prod
     environment:
       - NODE_ENV=production
       - SERVER_URL=${HOST_URL:-https://localhost:3001}/api/app
@@ -14,11 +16,13 @@ services:
     networks:
       - app-network
   client:
-    image: opensign/opensign:main
+    build:
+      context: ./apps/OpenSign
+      dockerfile: Dockerhubfile
     container_name: OpenSign-container
     depends_on:
       - server
-    env_file: ./apps/OpenSign/.env.production
+    env_file: .env.prod
     ports:
       - "3000:3000"
     networks:
