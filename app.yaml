@@ -1,0 +1,174 @@
+# DigitalOcean App Platform Specification for OpenSign E-Signature Platform
+# Deploy this app using: doctl apps create --spec app.yaml
+# Or via the DigitalOcean control panel
+
+name: opensign-platform
+region: sfo
+
+# Services
+services:
+  # Backend Service (OpenSignServer - Parse Server/Express)
+  - name: opensign-server
+    # Source configuration
+    github:
+      repo: VeroFi/signit
+      branch: main
+      deploy_on_push: true
+
+    # Build configuration
+    source_dir: /apps/OpenSignServer
+    dockerfile_path: apps/OpenSignServer/Dockerhubfile
+
+    # Runtime configuration
+    http_port: 8080
+    instance_count: 1
+    instance_size_slug: professional-xs
+
+    # Health check
+    health_check:
+      http_path: /api/app/health
+      initial_delay_seconds: 60
+      period_seconds: 10
+      timeout_seconds: 5
+      success_threshold: 1
+      failure_threshold: 3
+
+    # Routes - backend handles /api/* paths
+    routes:
+      - path: /api
+
+    # Environment variables
+    envs:
+      - key: NODE_ENV
+        value: "production"
+      - key: PARSE_APP_ID
+        value: "opensign"
+      - key: APP_ID
+        value: "opensign"
+      - key: PARSE_MOUNT
+        value: "/app"
+      - key: appName
+        value: "open_sign_server"
+
+      # Server URLs (will be auto-populated with your app URL)
+      - key: SERVER_URL
+        value: "${APP_URL}/api/app"
+      - key: PUBLIC_URL
+        value: "${APP_URL}"
+
+      # MongoDB Atlas Connection (ENCRYPTED - add via control panel)
+      - key: MONGODB_URI
+        scope: RUN_TIME
+        type: SECRET
+
+      # Parse Master Key (ENCRYPTED - add via control panel)
+      - key: MASTER_KEY
+        scope: RUN_TIME
+        type: SECRET
+
+      # Digital Ocean Spaces Storage
+      - key: DO_SPACE
+        value: "signit-files"
+      - key: DO_ENDPOINT
+        value: "https://sfo3.digitaloceanspaces.com"
+      - key: DO_BASEURL
+        value: "https://signit-files.sfo3.digitaloceanspaces.com"
+      - key: DO_REGION
+        value: "sfo3"
+      - key: USE_LOCAL
+        value: "false"
+
+      # DO Spaces Credentials (ENCRYPTED - add via control panel)
+      - key: DO_ACCESS_KEY_ID
+        scope: RUN_TIME
+        type: SECRET
+      - key: DO_SECRET_ACCESS_KEY
+        scope: RUN_TIME
+        type: SECRET
+
+      # Email Configuration (ENCRYPTED - add via control panel)
+      - key: SMTP_ENABLE
+        value: "true"
+      - key: SMTP_HOST
+        value: "smtp.gmail.com"
+      - key: SMTP_PORT
+        value: "587"
+      - key: SMTP_USER_EMAIL
+        scope: RUN_TIME
+        type: SECRET
+      - key: SMTP_PASS
+        scope: RUN_TIME
+        type: SECRET
+
+      # Document Signing Certificate (ENCRYPTED - add via control panel)
+      - key: PFX_BASE64
+        scope: RUN_TIME
+        type: SECRET
+      - key: PASS_PHRASE
+        scope: RUN_TIME
+        type: SECRET
+
+  # Frontend Service (OpenSign - React App)
+  - name: opensign-frontend
+    # Source configuration
+    github:
+      repo: VeroFi/signit
+      branch: main
+      deploy_on_push: true
+
+    # Build configuration
+    source_dir: /apps/OpenSign
+    dockerfile_path: apps/OpenSign/Dockerhubfile
+
+    # Runtime configuration
+    http_port: 3000
+    instance_count: 1
+    instance_size_slug: professional-xs
+
+    # Health check
+    health_check:
+      http_path: /
+      initial_delay_seconds: 60
+      period_seconds: 10
+      timeout_seconds: 5
+      success_threshold: 1
+      failure_threshold: 3
+
+    # Routes - frontend handles all other paths (root and catch-all)
+    routes:
+      - path: /
+
+    # Environment variables
+    envs:
+      - key: NODE_ENV
+        value: "production"
+      - key: GENERATE_SOURCEMAP
+        value: "false"
+
+      # Public URL will be auto-populated
+      - key: PUBLIC_URL
+        value: "${APP_URL}"
+
+      # Backend API URL - points to internal service
+      # App Platform will route /api requests to opensign-server service
+      - key: REACT_APP_SERVERURL
+        value: "/api/app"
+
+      # Parse App ID
+      - key: REACT_APP_APPID
+        value: "opensign"
+
+# Notes:
+# 1. Replace YOUR_GITHUB_USERNAME/YOUR_REPO_NAME with your actual repo
+# 2. Add SECRET environment variables via DigitalOcean control panel:
+#    - MONGODB_URI
+#    - MASTER_KEY
+#    - DO_ACCESS_KEY_ID
+#    - DO_SECRET_ACCESS_KEY
+#    - SMTP_USER_EMAIL
+#    - SMTP_PASS
+#    - PFX_BASE64
+#    - PASS_PHRASE
+# 3. ${APP_URL} will be automatically replaced with your app's URL
+# 4. Route order matters: /api routes to backend, / routes to frontend
+# 5. Both services will communicate internally via App Platform's network
