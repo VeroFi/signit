@@ -201,8 +201,8 @@ app.use(async function (req, res, next) {
 // Serve static assets from the /public folder
 app.use('/public', express.static(path.join(__dirname, '/public')));
 
-// Health check endpoint for App Platform
-app.get('/app/health', function (req, res) {
+// Health check endpoint for App Platform - must be before Parse Server mounting
+app.get('/health', function (req, res) {
   res.status(200).json({ status: 'ok', message: 'opensign-server is healthy' });
 });
 
