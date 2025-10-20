@@ -7,7 +7,11 @@ export default async function createContactIndex() {
   // Provide the complete MongoDB connection URL with the database name
   // Check DATABASE_URI first (preferred), then MONGODB_URI, then fallback to localhost
   const uri = process.env.DATABASE_URI || process.env.MONGODB_URI || 'mongodb://localhost:27017/dev';
-  const client = new MongoClient(uri);
+  const client = new MongoClient(uri, {
+    maxPoolSize: 10,
+    minPoolSize: 2,
+    serverSelectionTimeoutMS: 5000,
+  });
   try {
     await client.connect();
     const database = client.db();
@@ -47,9 +51,9 @@ export default async function createContactIndex() {
     });
 
     const migrationdb = database.collection('_SCHEMA');
-    // create migrationdb SCHEM migrationdb
+    // create migrationdb SCHEMA migrationdb
 
-    // Document to be inserted
+    // Document to be upserted
     const schemaDocument = {
       _id: 'Migrationdb',
       objectId: 'string',
@@ -60,8 +64,12 @@ export default async function createContactIndex() {
       details: 'string',
     };
 
-    // Insert the document
-    await migrationdb.insertOne(schemaDocument);
+    // Upsert the document (insert if not exists, update if exists)
+    await migrationdb.updateOne(
+      { _id: 'Migrationdb' },
+      { $set: schemaDocument },
+      { upsert: true }
+    );
     console.log(' Unique index created successfully.');
     console.log(' SUCCESS  Successfully ran indexed migrations directly on db.');
   } catch (error) {

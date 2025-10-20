@@ -94,6 +94,13 @@ const mailsender = smtpenable ? process.env.SMTP_USER_EMAIL : process.env.MAILGU
 export const config = {
   databaseURI:
     process.env.DATABASE_URI || process.env.MONGODB_URI || 'mongodb://localhost:27017/dev',
+  databaseOptions: {
+    maxPoolSize: 20,
+    minPoolSize: 5,
+    serverSelectionTimeoutMS: 5000,
+    socketTimeoutMS: 45000,
+    family: 4, // Use IPv4, skip trying IPv6
+  },
   cloud: function () {
     import('./cloud/main.js');
   },
