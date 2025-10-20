@@ -5,7 +5,8 @@ dotenv.config();
 
 export default async function createContactIndex() {
   // Provide the complete MongoDB connection URL with the database name
-  const uri = process.env.MONGODB_URI || 'mongodb://localhost:27017/dev'; // Replace with your MongoDB URI
+  // Check DATABASE_URI first (preferred), then MONGODB_URI, then fallback to localhost
+  const uri = process.env.DATABASE_URI || process.env.MONGODB_URI || 'mongodb://localhost:27017/dev';
   const client = new MongoClient(uri);
   try {
     await client.connect();
