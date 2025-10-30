@@ -3330,39 +3330,95 @@ export const flattenPdf = async (pdfFile) => {
 };
 
 export const mailTemplate = (param) => {
-  const appName =
-    "OpenSign™";
-  const logo =
-        `<div style='padding:10px'><img src='https://qikinnovation.ams3.digitaloceanspaces.com/logo.png' height='50' /></div>`;
-
-  const opurl =
-        ` <a href='https://www.opensignlabs.com' target=_blank>here</a>.</p></div></div></body></html>`;
+  const themeColor = '#264996';
+  const appName = "VeroFi";
+  const base = (process.env.PUBLIC_URL || 'http://localhost:3000').replace(/\/$/,'');
+  const logo = `<img src="${base}/favicon.ico" height="50" alt="SignIt" />`;
 
   const subject = `${param.senderName} has requested you to sign "${param.title}"`;
-  const body =
-    "<html><head><meta http-equiv='Content-Type' content='text/html;charset=UTF-8' /></head><body><div style='background-color:#f5f5f5;padding:20px'><div style='background:white;padding-bottom:20px'>" +
-    logo +
-    `<div style='padding:2px;font-family:system-ui;background-color:${themeColor}'><p style='font-size:20px;font-weight:400;color:white;padding-left:20px'>Digital Signature Request</p></div><div><p style='padding:20px;font-size:14px;margin-bottom:10px'>` +
-    param.senderName +
-    " has requested you to review and sign <strong>" +
-    param.title +
-    "</strong>.</p><div style='padding: 5px 0px 5px 25px;display:flex;flex-direction:row;justify-content:space-around'><table><tr><td style='font-weight:bold;font-family:sans-serif;font-size:15px'>Sender</td><td></td><td style='color:#626363;font-weight:bold'>" +
-    param.senderMail +
-    "</td></tr><tr><td style='font-weight:bold;font-family:sans-serif;font-size:15px'>Organization</td><td></td><td style='color:#626363;font-weight:bold'> " +
-    param.organization +
-    "</td></tr><tr><td style='font-weight:bold;font-family:sans-serif;font-size:15px'>Expires on</td><td></td><td style='color:#626363;font-weight:bold'>" +
-    param.localExpireDate +
-    "</td></tr><tr><td style='font-weight:bold;font-family:sans-serif;font-size:15px'>Note</td><td></td><td style='color:#626363;font-weight:bold'>" +
-    param.note +
-    "</td></tr><tr><td></td><td></td></tr></table></div> <div style='margin-left:70px'><a target=_blank href=" +
-    param.signingUrl +
-    "><button style='padding:12px;background-color:#d46b0f;color:white;border:0px;font-weight:bold;margin-top:30px'>Sign here</button></a></div><div style='display:flex;justify-content:center;margin-top:10px'></div></div></div><div><p> This is an automated email from " +
-    appName +
-    ". For any queries regarding this email, please contact the sender " +
-    param.senderMail +
-    " directly. If you think this email is inappropriate or spam, you may file a complaint with " +
-    appName +
-    opurl;
+  
+  const body = `
+    <html>
+    <head>
+      <meta http-equiv='Content-Type' content='text/html;charset=UTF-8' />
+      <style>
+        body{font-family:system-ui,-apple-system,sans-serif;margin:0;padding:0;background:#f3f2ef}
+        .email-container{max-width:680px;margin:0 auto;background:#fff;border-radius:14px;overflow:hidden;box-shadow:0 6px 20px rgba(0,0,0,.08)}
+        .banner{background:${themeColor};padding:22px 26px}
+        .brand{display:flex;align-items:center;gap:12px}
+        .brand img{height:40px}
+        .title{font-size:22px;line-height:1.25;color:#fff;font-weight:800;margin-top:10px}
+        .shell{background:#fff}
+        .body-wrap{padding:26px}
+        .lead{font-size:15px;line-height:22px;color:#262626;margin:0 0 12px 0}
+        .sub{font-size:14px;line-height:21px;color:#626363;margin:0 0 18px 0}
+        .details{background:#faf9f7;border:1px solid #eee;border-radius:12px;padding:14px 18px}
+        .details table{width:100%;border-collapse:collapse}
+        .details td{padding:7px 0;vertical-align:top}
+        .details td.key{width:160px;font-weight:700;color:#1a1a1a;font-size:14px}
+        .details td.val{font-weight:700;color:#626363;font-size:14px}
+        .cta-wrap{text-align:center;padding:22px 0 8px}
+        .cta{display:inline-block;padding:12px 18px;background:#f5c06a;color:#fff;text-decoration:none;border-radius:10px;font-weight:800;font-size:14px}
+        .info{margin-top:12px;background:#eef5fb;border-radius:12px;padding:12px 18px;color:#334}
+        .info-row{display:flex;gap:8px;align-items:flex-start;font-size:13px;line-height:20px}
+        .footer{padding:18px 26px 26px;color:#6b6b6b;font-size:12px;line-height:18px;text-align:center}
+      </style>
+    </head>
+    <body>
+      <div class="email-container">
+        <div class="shell">
+          <div class="banner">
+            <div class="brand">
+              ${logo}
+            </div>
+            <div class="title">Digital Signature Request</div>
+          </div>
+          <div class="body-wrap">
+            <p class="lead">
+              ${param.senderName} has requested you to review and sign <strong>${param.title}</strong>.
+            </p>
+            <p class="sub">
+              Before signing, you'll need to verify your identity with VeroFi.
+            </p>
+            <div class="details">
+              <table role="presentation">
+                <tr>
+                  <td class="key">Sender</td>
+                  <td class="val">${param.senderMail}</td>
+                </tr>
+                <tr>
+                  <td class="key">Organization</td>
+                  <td class="val">${param.organization}</td>
+                </tr>
+                <tr>
+                  <td class="key">Expires on</td>
+                  <td class="val">${param.localExpireDate}</td>
+                </tr>
+                <tr>
+                  <td class="key">Note</td>
+                  <td class="val">${param.note}</td>
+                </tr>
+              </table>
+            </div>
+            <div class="cta-wrap">
+              <a class="cta" target="_blank" href="{{secureverify_gate_url}}">
+                Verify &amp; Sign Document
+              </a>
+            </div>
+            <div class="info">
+              <div class="info-row">🔒
+                <span>Before signing, you'll need to verify your identity with VeroFi.</span>
+              </div>
+            </div>
+          </div>
+          <div class="footer">
+            This is an automated email from ${appName}. For any queries regarding this email, please contact the sender ${param.senderMail} directly.
+          </div>
+        </div>
+      </div>
+    </body>
+    </html>
+  `;
 
   return { subject, body };
 };

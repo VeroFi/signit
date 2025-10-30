@@ -244,6 +244,72 @@ async function sendMailProvider(req, plan, monthchange) {
 }
 
 async function sendmailv3(req) {
+  console.log('=== sendmailv3 FUNCTION CALLED ===');
+  console.log('SECUREVERIFY_ENABLED:', process.env.SECUREVERIFY_ENABLED);
+
+  // Check if this is a document signing email and SecureVerify is enabled
+  if (
+    process.env.SECUREVERIFY_ENABLED === 'true' &&
+    req.params.html &&
+    req.params.html.includes('{{secureverify_gate_url}}')
+  ) {
+    console.log('SecureVerify integration is ENABLED - processing email...');
+
+    // Extract recipient email
+    const recipientEmail = req.params.recipient;
+    console.log('Recipient email:', recipientEmail);
+
+    // Since we're using {{secureverify_gate_url}} placeholder, I need to construct the original signing URL
+    // Extract document ID and contact book ID from request parameters
+    const docId = req.params.docId || 'unknown';
+    const contactBookId = req.params.contactBookId || 'unknown';
+
+    // Construct the proper OpenSign document signing URL
+    const originalUrl = `http://localhost:3000/load/recipientSignPdf/${docId}/${contactBookId}`;
+
+    console.log('Document ID:', docId);
+    console.log('Contact Book ID:', contactBookId);
+    console.log('Constructed signing URL:', originalUrl);
+
+    // Generate SecureVerify gate URL
+    try {
+      const response = await axios.post(
+        `${process.env.SECUREVERIFY_API_URL}/verification-gate/generate`,
+        {
+          recipientEmail: recipientEmail,
+          recipientName: '',
+          docId: docId,
+          contactBookId: contactBookId,
+          redirectUrl: originalUrl,
+        },
+        {
+          headers: {
+            Authorization: `Bearer ${process.env.SECUREVERIFY_API_KEY}`,
+            'Content-Type': 'application/json',
+          },
+        }
+      );
+
+      console.log('SecureVerify API response:', response.data);
+
+      // Replace the signing URL in the HTML with the gate URL
+      const gateUrl = response.data.gateUrl;
+      req.params.html = req.params.html.replace(/{{secureverify_gate_url}}/g, gateUrl);
+
+      console.log('Updated HTML with gate URL:', gateUrl);
+    } catch (err) {
+      console.log('Error generating SecureVerify gate URL:', err.message);
+      console.log('Error details:', err.response?.data || err);
+      console.log('Using original HTML as fallback');
+    }
+  } else {
+    console.log('SecureVerify integration is DISABLED or not a signing email');
+    console.log(
+      'HTML contains secureverify_gate_url:',
+      req.params.html?.includes('{{secureverify_gate_url}}')
+    );
+  }
+
   const nonCustomMail = await sendMailProvider(req);
   return nonCustomMail;
 }

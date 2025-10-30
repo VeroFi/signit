@@ -18,7 +18,7 @@ import { P12Signer } from '@signpdf/signer-p12';
 const serverUrl = cloudServerUrl; // process.env.SERVER_URL;
 const APPID = serverAppId;
 const masterKEY = process.env.MASTER_KEY;
-const eSignName = 'OpenSign';
+const eSignName = 'SignIt';
 const eSigncontact = 'hello@opensignlabs.com';
 
 async function unlinkFile(path) {
@@ -104,8 +104,8 @@ async function updateDoc(docId, url, userId, ipAddress, data, className, sign) {
 async function sendNotifyMail(doc, signUser, mailProvider, publicUrl) {
   try {
     const TenantAppName = appName;
-    const logo =
-      "<img src='https://qikinnovation.ams3.digitaloceanspaces.com/logo.png' height='50' style='padding:20px'/>";
+    const base = (process.env.APP_URL || 'http://localhost:8080').replace(/\/$/, '');
+    const logo = `<img src="${base}/public/favicon.ico" height="50" alt="SignIt" />`;
     const opurl = ` <a href=www.opensignlabs.com target=_blank>here</a>`;
     const auditTrailCount = doc?.AuditTrail?.filter(x => x.Activity === 'Signed')?.length || 0;
     const signersCount = doc?.Placeholders?.length;
@@ -119,12 +119,70 @@ async function sendNotifyMail(doc, signUser, mailProvider, publicUrl) {
       const signerEmail = signUser.Email;
       const viewDocUrl = `${publicUrl}/recipientSignPdf/${doc.objectId}`;
       const subject = `Document "${pdfName}" has been signed by ${signerName}`;
-      const body =
-        "<html><head><meta http-equiv='Content-Type' content='text/html; charset=UTF-8'/></head><body><div style='background-color:#f5f5f5;padding:20px'><div style='background-color:white'>" +
-        `<div>${logo}</div><div style='padding:2px;font-family:system-ui;background-color:#47a3ad'><p style='font-size:20px;font-weight:400;color:white;padding-left:20px'>Document signed by ${signerName}</p>` +
-        `</div><div style='padding:20px;font-family:system-ui;font-size:14px'><p>Dear ${creatorName},</p><p>${pdfName} has been signed by ${signerName} "${signerEmail}" successfully</p>` +
-        `<p><a href=${viewDocUrl} target=_blank>View Document</a></p></div></div><div><p>This is an automated email from ${TenantAppName}. For any queries regarding this email, ` +
-        `please contact the sender ${creatorEmail} directly. If you think this email is inappropriate or spam, you may file a complaint with ${TenantAppName}${opurl}.</p></div></div></body></html>`;
+      const body = `
+      <html>
+      <head>
+        <meta http-equiv='Content-Type' content='text/html; charset=UTF-8' />
+        <style>
+          body{font-family:system-ui,-apple-system,sans-serif;margin:0;padding:0;background:#f3f2ef}
+          .email-container{max-width:680px;margin:0 auto;background:#fff;border-radius:14px;overflow:hidden;box-shadow:0 6px 20px rgba(0,0,0,.08)}
+          .banner{background:#264996;padding:22px 26px}
+          .brand{display:flex;align-items:center;gap:12px}
+          .brand img{height:40px}
+          .title{font-size:22px;line-height:1.25;color:#fff;font-weight:800;margin-top:10px}
+          .shell{background:#fff}
+          .body-wrap{padding:26px}
+          .lead{font-size:15px;line-height:22px;color:#262626;margin:0 0 12px 0}
+          .sub{font-size:14px;line-height:21px;color:#626363;margin:0 0 18px 0}
+          .details{background:#faf9f7;border:1px solid #eee;border-radius:12px;padding:14px 18px}
+          .details table{width:100%;border-collapse:collapse}
+          .details td{padding:7px 0;vertical-align:top}
+          .details td.key{width:160px;font-weight:700;color:#1a1a1a;font-size:14px}
+          .details td.val{font-weight:700;color:#626363;font-size:14px}
+          .cta-wrap{text-align:center;padding:22px 0 8px}
+          .cta{display:inline-block;padding:12px 18px;background:#f5c06a;color:#fff;text-decoration:none;border-radius:10px;font-weight:800;font-size:14px}
+          .info{margin-top:12px;background:#eef5fb;border-radius:12px;padding:12px 18px;color:#334}
+          .info-row{display:flex;gap:8px;align-items:flex-start;font-size:13px;line-height:20px}
+          .footer{padding:18px 26px 26px;color:#6b6b6b;font-size:12px;line-height:18px;text-align:center}
+          .success-banner{background:#10b981;padding:22px 26px}
+          .success-title{font-size:22px;line-height:1.25;color:#fff;font-weight:800;margin-top:10px}
+        </style>
+      </head>
+      <body>
+        <div class="email-container">
+          <div class="shell">
+            <!-- Header banner -->
+            <div class="success-banner">
+              <div class="brand">
+                ${logo}
+              </div>
+              <div class="success-title">Document signed by ${signerName}</div>
+            </div>
+
+            <!-- Body -->
+            <div class="body-wrap">
+              <p class="lead">
+                Dear ${creatorName},
+              </p>
+              <p class="sub">
+                ${pdfName} has been signed by ${signerName} "${signerEmail}" successfully
+              </p>
+
+              <!-- CTA -->
+              <div class="cta-wrap">
+                <a class="cta" target="_blank" href="${viewDocUrl}">
+                  View Document
+                </a>
+              </div>
+
+            <!-- Footer -->
+            <div class="footer">
+              This is an automated email from ${TenantAppName}. For any queries regarding this email, please contact the sender ${creatorEmail} directly.
+            </div>
+          </div>
+        </div>
+      </body>
+      </html>`;
 
       const params = {
         extUserId: sender.objectId,
@@ -155,8 +213,8 @@ async function sendCompletedMail(obj) {
   const sender = obj.doc.ExtUserPtr;
   const pdfName = doc.Name;
   const TenantAppName = appName;
-  const logo =
-    "<img src='https://qikinnovation.ams3.digitaloceanspaces.com/logo.png' height='50' style='padding:20px'/>";
+  const base = (process.env.APP_URL || 'http://localhost:8080').replace(/\/$/, '');
+  const logo = `<img src="${base}/public/favicon.ico" height="50" alt="SignIt" />`;
   const opurl = ` <a href=www.opensignlabs.com target=_blank>here</a>`;
   let signersMail;
   if (doc?.Signers?.length > 0) {
@@ -169,12 +227,63 @@ async function sendCompletedMail(obj) {
   }
   const recipient = signersMail;
   let subject = `Document "${pdfName}" has been signed by all parties`;
-  let body =
-    "<html><head><meta http-equiv='Content-Type' content='text/html; charset=UTF-8' /></head><body><div style='background-color:#f5f5f5;padding:20px'><div style='background-color:white'>" +
-    `<div>${logo}</div><div style='padding:2px;font-family:system-ui;background-color:#47a3ad'><p style='font-size:20px;font-weight:400;color:white;padding-left:20px'>Document signed successfully</p></div><div>` +
-    `<p style='padding:20px;font-family:system-ui;font-size:14px'>All parties have successfully signed the document <b>"${pdfName}"</b>. Kindly download the document from the attachment.</p>` +
-    `</div></div><div><p>This is an automated email from ${TenantAppName}. For any queries regarding this email, please contact the sender ${sender.Email} directly.` +
-    `If you think this email is inappropriate or spam, you may file a complaint with ${TenantAppName}${opurl}.</p></div></div></body></html>`;
+  let body = `
+  <html>
+  <head>
+    <meta http-equiv='Content-Type' content='text/html; charset=UTF-8' />
+    <style>
+      body{font-family:system-ui,-apple-system,sans-serif;margin:0;padding:0;background:#f3f2ef}
+      .email-container{max-width:680px;margin:0 auto;background:#fff;border-radius:14px;overflow:hidden;box-shadow:0 6px 20px rgba(0,0,0,.08)}
+      .banner{background:#264996;padding:22px 26px}
+      .brand{display:flex;align-items:center;gap:12px}
+      .brand img{height:40px}
+      .title{font-size:22px;line-height:1.25;color:#fff;font-weight:800;margin-top:10px}
+      .shell{background:#fff}
+      .body-wrap{padding:26px}
+      .lead{font-size:15px;line-height:22px;color:#262626;margin:0 0 12px 0}
+      .sub{font-size:14px;line-height:21px;color:#626363;margin:0 0 18px 0}
+      .details{background:#faf9f7;border:1px solid #eee;border-radius:12px;padding:14px 18px}
+      .details table{width:100%;border-collapse:collapse}
+      .details td{padding:7px 0;vertical-align:top}
+      .details td.key{width:160px;font-weight:700;color:#1a1a1a;font-size:14px}
+      .details td.val{font-weight:700;color:#626363;font-size:14px}
+      .cta-wrap{text-align:center;padding:22px 0 8px}
+      .cta{display:inline-block;padding:12px 18px;background:#f5c06a;color:#fff;text-decoration:none;border-radius:10px;font-weight:800;font-size:14px}
+      .info{margin-top:12px;background:#eef5fb;border-radius:12px;padding:12px 18px;color:#334}
+      .info-row{display:flex;gap:8px;align-items:flex-start;font-size:13px;line-height:20px}
+      .footer{padding:18px 26px 26px;color:#6b6b6b;font-size:12px;line-height:18px;text-align:center}
+      .success-banner{background:#10b981;padding:22px 26px}
+      .success-title{font-size:22px;line-height:1.25;color:#fff;font-weight:800;margin-top:10px}
+    </style>
+  </head>
+  <body>
+    <div class="email-container">
+      <div class="shell">
+        <!-- Header banner -->
+        <div class="success-banner">
+          <div class="brand">
+            ${logo}
+          </div>
+          <div class="success-title">Document signed successfully</div>
+        </div>
+
+        <!-- Body -->
+        <div class="body-wrap">
+          <p class="lead">
+            All parties have successfully signed the document <strong>"${pdfName}"</strong>.
+          </p>
+          <p class="sub">
+            Kindly download the document from the attachment.
+          </p>
+
+        <!-- Footer -->
+        <div class="footer">
+          This is an automated email from ${TenantAppName}. For any queries regarding this email, please contact the sender ${sender.Email} directly.
+        </div>
+      </div>
+    </div>
+  </body>
+  </html>`;
 
   if (obj?.isCustomMail) {
     const tenant = sender?.TenantId;

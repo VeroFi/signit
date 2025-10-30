@@ -32,7 +32,10 @@ async function sendMail(document, publicUrl) {
     signerMail = signerMail.slice();
     signerMail.splice(1);
   }
+  console.log('=== STARTING EMAIL LOOP ===');
+  console.log('signerMail.length:', signerMail.length);
   for (let i = 0; i < signerMail.length; i++) {
+    console.log(`=== PROCESSING SIGNER ${i + 1}/${signerMail.length} ===`);
     try {
       let url = `${serverUrl}/functions/sendmailv3`;
       const headers = { 'Content-Type': 'application/json', 'X-Parse-Application-Id': appId };
@@ -47,6 +50,46 @@ async function sendMail(document, publicUrl) {
         encodeBase64 = btoa(`${document.objectId}/${signerMail[i].email}`);
       }
       let signPdf = `${hostUrl}/login/${encodeBase64}`;
+
+      console.log('=== DEBUG START ===');
+      console.log('SECUREVERIFY_ENABLED:', process.env.SECUREVERIFY_ENABLED);
+      console.log('SECUREVERIFY_API_URL:', process.env.SECUREVERIFY_API_URL);
+      console.log('Original signPdf:', signPdf);
+
+      // NEW: Get SecureVerify gate URL if enabled
+      if (process.env.SECUREVERIFY_ENABLED === 'true') {
+        console.log('SecureVerify integration is ENABLED - calling API...');
+        try {
+          const response = await axios.post(
+            `${process.env.SECUREVERIFY_API_URL}/verification-gate/generate`,
+            {
+              recipientEmail: existSigner?.Email || signerMail[i].email,
+              recipientName: existSigner?.Name || '',
+              docId: document.objectId,
+              contactBookId: objectId || '',
+              redirectUrl: signPdf,
+            },
+            {
+              headers: {
+                Authorization: `Bearer ${process.env.SECUREVERIFY_API_KEY}`,
+                'Content-Type': 'application/json',
+              },
+            }
+          );
+          console.log('SecureVerify API response:', response.data);
+          signPdf = response.data.gateUrl; // OVERRIDE signing URL with gate URL
+          console.log('Updated signPdf to gate URL:', signPdf);
+        } catch (err) {
+          console.log('Error generating SecureVerify gate URL:', err.message);
+          console.log('Error details:', err.response?.data || err);
+          console.log('Using direct link as fallback');
+        }
+      } else {
+        console.log('SecureVerify integration is DISABLED');
+      }
+      console.log('Final signPdf:', signPdf);
+      console.log('=== DEBUG END ===');
+
       const orgName = document.ExtUserPtr.Company ? document.ExtUserPtr.Company : '';
       const senderObj = document?.ExtUserPtr;
       const mailBody = document?.ExtUserPtr?.TenantId?.RequestBody || '';
@@ -69,7 +112,7 @@ async function sendMail(document, publicUrl) {
           receiver_phone: existSigner?.Phone || '',
           expiry_date: localExpireDate,
           company_name: orgName,
-          signing_url: signPdf,
+          secureverify_gate_url: signPdf, // contains SecureVerify gate URL
         };
         replaceVar = replaceMailVaribles(mailSubject, htmlReqBody, variables);
       }
@@ -81,14 +124,28 @@ async function sendMail(document, publicUrl) {
         organization: orgName,
         localExpireDate: localExpireDate,
         signingUrl: signPdf,
+        recipientEmail: existSigner?.Email || signerMail[i].email, // NEW
+        recipientName: existSigner?.Name || '', // NEW
+        docId: document.objectId, // NEW
+        contactBookId: objectId || '', // NEW
       };
+      // Generate email content (async)
+      let emailContent;
+      if (replaceVar?.subject && replaceVar?.body) {
+        // Use custom tenant template
+        emailContent = { subject: replaceVar.subject, body: replaceVar.body };
+      } else {
+        // Use default mailTemplate (now async)
+        emailContent = await mailTemplate(mailparam);
+      }
+
       let params = {
         extUserId: document.ExtUserPtr.objectId,
         recipient: existSigner?.Email || signerMail[i].email,
-        subject: replaceVar?.subject ? replaceVar?.subject : mailTemplate(mailparam).subject,
+        subject: emailContent.subject,
         from: document.ExtUserPtr.Email,
         replyto: senderEmail || '',
-        html: replaceVar?.body ? replaceVar?.body : mailTemplate(mailparam).body,
+        html: emailContent.body,
       };
       const sendMail = await axios.post(url, params, { headers: headers });
       // if (sendMail.data.result.status === 'success') {
@@ -225,6 +282,7 @@ async function batchQuery(userId, Documents, Ip, parseConfig, type, publicUrl) {
   }
 }
 export default async function createBatchDocs(request) {
+  console.log('=== createBatchDocs FUNCTION CALLED ===');
   const strDocuments = request.params.Documents;
   const sessionToken = request.headers?.sessiontoken;
   const type = request.headers?.type || 'quicksend';

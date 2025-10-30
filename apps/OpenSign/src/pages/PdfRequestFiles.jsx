@@ -809,7 +809,7 @@ function PdfRequestFiles(
                             receiver_phone: user?.Phone || "",
                             expiry_date: localExpireDate,
                             company_name: orgName,
-                            signing_url: signPdf
+                            secureverify_gate_url: signPdf
                           };
                           replaceVar = replaceMailVaribles(
                             requestSubject,

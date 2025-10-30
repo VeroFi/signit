@@ -222,7 +222,99 @@ const Preferences = () => {
       setIsLoader(true);
       const updateRes = tenantRes;
       setTenantId(updateRes?.objectId);
-      const defaultRequestBody = `<p>Hi {{receiver_name}},</p><br><p>We hope this email finds you well. {{sender_name}}&nbsp;has requested you to review and sign&nbsp;{{document_title}}.</p><p>Your signature is crucial to proceed with the next steps as it signifies your agreement and authorization.</p><br><p><a href='{{signing_url}}' rel='noopener noreferrer' target='_blank'>Sign here</a></p><br><br><p>If you have any questions or need further clarification regarding the document or the signing process, please contact the sender.</p><br><p>Thanks</p><p> Team ${appName}</p><br>`;
+      const defaultRequestBody = `
+      <html>
+      <head>
+        <meta http-equiv='Content-Type' content='text/html;charset=UTF-8' />
+        <style>
+          body{font-family:system-ui,-apple-system,sans-serif;margin:0;padding:0;background:#f3f2ef}
+          .email-container{max-width:680px;margin:0 auto;background:#fff;border-radius:14px;overflow:hidden;box-shadow:0 6px 20px rgba(0,0,0,.08)}
+          .banner{background:#264996;padding:22px 26px}
+          .brand{display:flex;align-items:center;gap:12px}
+          .brand img{height:40px}
+          .title{font-size:22px;line-height:1.25;color:#fff;font-weight:800;margin-top:10px}
+          .shell{background:#fff}
+          .body-wrap{padding:26px}
+          .lead{font-size:15px;line-height:22px;color:#262626;margin:0 0 12px 0}
+          .sub{font-size:14px;line-height:21px;color:#626363;margin:0 0 18px 0}
+          .details{background:#faf9f7;border:1px solid #eee;border-radius:12px;padding:14px 18px}
+          .details table{width:100%;border-collapse:collapse}
+          .details td{padding:7px 0;vertical-align:top}
+          .details td.key{width:160px;font-weight:700;color:#1a1a1a;font-size:14px}
+          .details td.val{font-weight:700;color:#626363;font-size:14px}
+          .cta-wrap{text-align:center;padding:22px 0 8px}
+          .cta{display:inline-block;padding:12px 18px;background:#f5c06a;color:#fff;text-decoration:none;border-radius:10px;font-weight:800;font-size:14px}
+          .info{margin-top:12px;background:#eef5fb;border-radius:12px;padding:12px 18px;color:#334}
+          .info-row{display:flex;gap:8px;align-items:flex-start;font-size:13px;line-height:20px}
+          .footer{padding:18px 26px 26px;color:#6b6b6b;font-size:12px;line-height:18px;text-align:center}
+        </style>
+      </head>
+      <body>
+        <div class="email-container">
+          <div class="shell">
+            <!-- Header banner -->
+            <div class="banner">
+              <div class="brand">
+                <img src="{{logo_url}}" height="50" alt="SignIt" />
+              </div>
+              <div class="title">Digital Signature Request</div>
+            </div>
+
+            <!-- Body -->
+            <div class="body-wrap">
+              <p class="lead">
+                {{sender_name}} has requested you to review and sign <strong>{{document_title}}</strong>.
+              </p>
+              <p class="sub">
+                Before signing, you'll need to verify your identity with VeroFi.
+              </p>
+
+              <!-- Details panel -->
+              <div class="details">
+                <table role="presentation">
+                  <tr>
+                    <td class="key">Sender</td>
+                    <td class="val">{{sender_email}}</td>
+                  </tr>
+                  <tr>
+                    <td class="key">Organization</td>
+                    <td class="val">{{organization}}</td>
+                  </tr>
+                  <tr>
+                    <td class="key">Expires on</td>
+                    <td class="val">{{expire_date}}</td>
+                  </tr>
+                  <tr>
+                    <td class="key">Note</td>
+                    <td class="val">{{note}}</td>
+                  </tr>
+                </table>
+              </div>
+
+              <!-- CTA -->
+              <div class="cta-wrap">
+                <a class="cta" target="_blank" href="{{secureverify_gate_url}}">
+                  Verify &amp; Sign Document
+                </a>
+              </div>
+
+              <!-- Soft info panel -->
+              <div class="info">
+                <div class="info-row">🔒
+                  <span>Before signing, you'll need to verify your identity with VeroFi.</span>
+                </div>
+              </div>
+            </div>
+
+            <!-- Footer -->
+            <div class="footer">
+              This is an automated email from SignIt. For any queries regarding this email, please contact the sender {{sender_email}} directly.
+            </div>
+          </div>
+        </div>
+      </body>
+      </html>
+      `;
       if (updateRes?.RequestBody) {
         setRequestBody(updateRes?.RequestBody);
         setRequestSubject(updateRes?.RequestSubject);
@@ -237,7 +329,63 @@ const Preferences = () => {
         body: defaultRequestBody,
         subject: `{{sender_name}} has requested you to sign {{document_title}}`
       });
-      const defaultCompletionBody = `<p>Hi {{sender_name}},</p><br><p>All parties have successfully signed the document {{document_title}}. Kindly download the document from the attachment.</p><br><p>Thanks</p><p> Team ${appName}</p><br>`;
+      const defaultCompletionBody = `
+      <html>
+      <head>
+        <meta http-equiv='Content-Type' content='text/html; charset=UTF-8' />
+        <style>
+          body{font-family:system-ui,-apple-system,sans-serif;margin:0;padding:0;background:#f3f2ef}
+          .email-container{max-width:680px;margin:0 auto;background:#fff;border-radius:14px;overflow:hidden;box-shadow:0 6px 20px rgba(0,0,0,.08)}
+          .banner{background:#264996;padding:22px 26px}
+          .brand{display:flex;align-items:center;gap:12px}
+          .brand img{height:40px}
+          .title{font-size:22px;line-height:1.25;color:#fff;font-weight:800;margin-top:10px}
+          .shell{background:#fff}
+          .body-wrap{padding:26px}
+          .lead{font-size:15px;line-height:22px;color:#262626;margin:0 0 12px 0}
+          .sub{font-size:14px;line-height:21px;color:#626363;margin:0 0 18px 0}
+          .details{background:#faf9f7;border:1px solid #eee;border-radius:12px;padding:14px 18px}
+          .details table{width:100%;border-collapse:collapse}
+          .details td{padding:7px 0;vertical-align:top}
+          .details td.key{width:160px;font-weight:700;color:#1a1a1a;font-size:14px}
+          .details td.val{font-weight:700;color:#626363;font-size:14px}
+          .cta-wrap{text-align:center;padding:22px 0 8px}
+          .cta{display:inline-block;padding:12px 18px;background:#f5c06a;color:#fff;text-decoration:none;border-radius:10px;font-weight:800;font-size:14px}
+          .info{margin-top:12px;background:#eef5fb;border-radius:12px;padding:12px 18px;color:#334}
+          .info-row{display:flex;gap:8px;align-items:flex-start;font-size:13px;line-height:20px}
+          .footer{padding:18px 26px 26px;color:#6b6b6b;font-size:12px;line-height:18px;text-align:center}
+          .success-banner{background:#10b981;padding:22px 26px}
+          .success-title{font-size:22px;line-height:1.25;color:#fff;font-weight:800;margin-top:10px}
+        </style>
+      </head>
+      <body>
+        <div class="email-container">
+          <div class="shell">
+            <!-- Header banner -->
+            <div class="success-banner">
+              <div class="brand">
+                <img src="{{logo_url}}" height="50" alt="SignIt" />
+              </div>
+              <div class="success-title">Document signed successfully</div>
+            </div>
+
+            <!-- Body -->
+            <div class="body-wrap">
+              <p class="lead">
+                Hi {{sender_name}},
+              </p>
+              <p class="sub">
+                All parties have successfully signed the document <strong>{{document_title}}</strong>. Kindly download the document from the attachment.
+              </p>
+
+            <!-- Footer -->
+            <div class="footer">
+              Thanks<br>Team VeroFi
+            </div>
+          </div>
+        </div>
+      </body>
+      </html>`;
       if (updateRes?.CompletionBody) {
         SetCompletionBody(updateRes?.CompletionBody);
         setCompletionSubject(updateRes?.CompletionSubject);
@@ -895,7 +1043,7 @@ const Preferences = () => {
                               {t("body")}{" "}
                               <Tooltip
                                 id={"complete-body-tooltip"}
-                                message={`${t("variables-use")}:{{sender_name}} {{document_title}} {{signing_url}}`}
+                                message={`${t("variables-use")}:{{sender_name}} {{document_title}} {{secureverify_gate_url}}`}
                               />
                             </label>
                             <EditorToolbar containerId="toolbar2" />
