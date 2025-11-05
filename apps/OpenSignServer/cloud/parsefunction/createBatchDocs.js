@@ -28,18 +28,22 @@ async function sendMail(document, publicUrl) {
   const senderName = document.ExtUserPtr.Name;
   const senderEmail = document.ExtUserPtr.Email;
 
-  if (document.SendinOrder) {
-    signerMail = signerMail.slice();
-    signerMail.splice(1);
-  }
-  console.log('=== STARTING EMAIL LOOP ===');
+  // REMOVED: SendinOrder limiting logic so all signers receive emails simultaneously
+  // if (document.SendinOrder) {
+  //   signerMail = signerMail.slice();
+  //   signerMail.splice(1);
+  // }
+
+  console.log('=== STARTING EMAIL LOOP (PARALLEL) ===');
   console.log('signerMail.length:', signerMail.length);
-  for (let i = 0; i < signerMail.length; i++) {
+
+  // Convert sequential email sending to parallel using Promise.all()
+  const emailPromises = signerMail.map(async (signer, i) => {
     console.log(`=== PROCESSING SIGNER ${i + 1}/${signerMail.length} ===`);
     try {
       let url = `${serverUrl}/functions/sendmailv3`;
       const headers = { 'Content-Type': 'application/json', 'X-Parse-Application-Id': appId };
-      const objectId = signerMail[i]?.signerObjId;
+      const objectId = signer?.signerObjId;
       const hostUrl = baseUrl.origin;
       let encodeBase64;
       let existSigner = {};
@@ -47,7 +51,7 @@ async function sendMail(document, publicUrl) {
         existSigner = document?.Signers?.find(user => user.objectId === objectId);
         encodeBase64 = btoa(`${document.objectId}/${existSigner?.Email}/${objectId}`);
       } else {
-        encodeBase64 = btoa(`${document.objectId}/${signerMail[i].email}`);
+        encodeBase64 = btoa(`${document.objectId}/${signer.email}`);
       }
       let signPdf = `${hostUrl}/login/${encodeBase64}`;
 
@@ -56,14 +60,14 @@ async function sendMail(document, publicUrl) {
       console.log('SECUREVERIFY_API_URL:', process.env.SECUREVERIFY_API_URL);
       console.log('Original signPdf:', signPdf);
 
-      // NEW: Get SecureVerify gate URL if enabled
+      // Get SecureVerify gate URL if enabled
       if (process.env.SECUREVERIFY_ENABLED === 'true') {
         console.log('SecureVerify integration is ENABLED - calling API...');
         try {
           const response = await axios.post(
             `${process.env.SECUREVERIFY_API_URL}/verification-gate/generate`,
             {
-              recipientEmail: existSigner?.Email || signerMail[i].email,
+              recipientEmail: existSigner?.Email || signer.email,
               recipientName: existSigner?.Name || '',
               docId: document.objectId,
               contactBookId: objectId || '',
@@ -108,7 +112,7 @@ async function sendMail(document, publicUrl) {
           sender_mail: senderEmail,
           sender_phone: senderObj?.Phone || '',
           receiver_name: existSigner?.Name || '',
-          receiver_email: existSigner?.Email || signerMail[i].email,
+          receiver_email: existSigner?.Email || signer.email,
           receiver_phone: existSigner?.Phone || '',
           expiry_date: localExpireDate,
           company_name: orgName,
@@ -124,10 +128,10 @@ async function sendMail(document, publicUrl) {
         organization: orgName,
         localExpireDate: localExpireDate,
         signingUrl: signPdf,
-        recipientEmail: existSigner?.Email || signerMail[i].email, // NEW
-        recipientName: existSigner?.Name || '', // NEW
-        docId: document.objectId, // NEW
-        contactBookId: objectId || '', // NEW
+        recipientEmail: existSigner?.Email || signer.email,
+        recipientName: existSigner?.Name || '',
+        docId: document.objectId,
+        contactBookId: objectId || '',
       };
       // Generate email content (async)
       let emailContent;
@@ -141,7 +145,7 @@ async function sendMail(document, publicUrl) {
 
       let params = {
         extUserId: document.ExtUserPtr.objectId,
-        recipient: existSigner?.Email || signerMail[i].email,
+        recipient: existSigner?.Email || signer.email,
         subject: emailContent.subject,
         from: document.ExtUserPtr.Email,
         replyto: senderEmail || '',
@@ -152,9 +156,13 @@ async function sendMail(document, publicUrl) {
       //   console.log('batch login mail sent');
       // }
     } catch (error) {
-      console.log('error', error);
+      console.log(`Error sending email to signer ${i + 1}:`, error);
     }
-  }
+  });
+
+  // Send all emails in parallel
+  await Promise.all(emailPromises);
+  console.log('=== ALL EMAILS SENT (PARALLEL) ===');
 }
 async function batchQuery(userId, Documents, Ip, parseConfig, type, publicUrl) {
   const extCls = new Parse.Query('contracts_Users');
@@ -174,11 +182,15 @@ async function batchQuery(userId, Documents, Ip, parseConfig, type, publicUrl) {
         ).filter(signer => Object.keys(signer).length > 0);
         const date = new Date();
         const isoDate = date.toISOString();
+        // Set initial ACL - DocumentAftersave will update ACL for all signers with UserId
+        // For email-only signers (no UserId yet), linkContactToDoc will set ACL when they first access
         let Acl = { [x.CreatedBy.objectId]: { read: true, write: true } };
         if (allSigner && allSigner.length > 0) {
-          allSigner.forEach(x => {
-            if (x?.CreatedBy?.objectId) {
-              const obj = { [x.CreatedBy.objectId]: { read: true, write: true } };
+          allSigner.forEach(signer => {
+            // Only set ACL for signers who already have a UserId (existing platform users)
+            // Email-only signers will get ACL set by linkContactToDoc when they access the document
+            if (signer?.CreatedBy?.objectId) {
+              const obj = { [signer.CreatedBy.objectId]: { read: true, write: true } };
               Acl = { ...Acl, ...obj };
             }
           });

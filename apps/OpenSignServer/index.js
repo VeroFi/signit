@@ -46,12 +46,12 @@ if (useLocal !== 'true') {
   } catch (err) {
     console.log('Please provide AWS credintials in env file! Defaulting to local storage.');
     fsAdapter = new FSFilesAdapter({
-      filesSubDirectory: 'files', // optional, defaults to ./files
+      filesSubDirectory: 'files',
     });
   }
 } else {
   fsAdapter = new FSFilesAdapter({
-    filesSubDirectory: 'files', // optional, defaults to ./files
+    filesSubDirectory: 'files',
   });
 }
 
@@ -99,7 +99,7 @@ export const config = {
     minPoolSize: 5,
     serverSelectionTimeoutMS: 5000,
     socketTimeoutMS: 45000,
-    family: 4, // Use IPv4, skip trying IPv6
+    family: 4,
   },
   cloud: function () {
     import('./cloud/main.js');
@@ -108,12 +108,11 @@ export const config = {
   logLevel: ['error'],
   maxLimit: 500,
   maxUploadSize: '30mb',
-  masterKey: process.env.MASTER_KEY, //Add your master key here. Keep it secret!
-  masterKeyIps: ['0.0.0.0/0', '::/0'], // '::1'
-  serverURL: cloudServerUrl, // Don't forget to change to https if needed
+  masterKey: process.env.MASTER_KEY,
+  masterKeyIps: ['0.0.0.0/0', '::/0'],
+  serverURL: cloudServerUrl,
   verifyUserEmails: false,
   publicServerURL: process.env.SERVER_URL || cloudServerUrl,
-  // Your apps name. This will appear in the subject and body of the emails that are sent.
   appName: appName,
   allowClientClassCreation: false,
   allowExpiredAuthDataToken: false,
@@ -167,7 +166,10 @@ app.use(express.json({ limit: '50mb' }));
 app.use(express.urlencoded({ limit: '50mb', extended: true }));
 app.use(function (req, res, next) {
   req.headers['x-real-ip'] = getUserIP(req);
-  const publicUrl = 'https://' + req?.get('host');
+  // Fix SSL error for localhost - use http:// for localhost, https:// for production
+  const host = req?.get('host') || '';
+  const protocol = host.includes('localhost') || host.includes('127.0.0.1') ? 'http' : 'https';
+  const publicUrl = `${protocol}://${host}`;
   req.headers['public_url'] = publicUrl;
   next();
 });
@@ -225,10 +227,8 @@ if (!process.env.TESTING) {
     process.exit();
   }
 }
-// Mount your custom express app
 app.use('/', customRoute);
 
-// Parse Server plays nicely with the rest of your web routes
 app.get('/', function (req, res) {
   res.status(200).send('opensign-server is running !!!');
 });

@@ -902,7 +902,7 @@ function PlaceHolderSign() {
             setSignerPos(signerupdate);
           } else {
             const updatedData = signerPos
-              .filter((item) => !(item.Id === Id && item.Role === "prefill")) // Remove prefill object
+              .filter((item) => !(item.Id === Id && item.Role === "prefill"))
               .map((item) => {
                 if (item.Id === Id && item.Role !== "prefill") {
                   // Create a copy of the item object and delete the placeHolder field
@@ -1267,11 +1267,17 @@ function PlaceHolderSign() {
     let senderPhone = pdfDetails?.[0]?.ExtUserPtr?.Phone;
     let signerMail = signersdata.slice();
 
-    if (pdfDetails?.[0]?.SendinOrder && pdfDetails?.[0]?.SendinOrder === true) {
-      signerMail.splice(1);
-    }
+    // REMOVED: SendinOrder limiting logic so all signers receive emails simultaneously
+    // if (pdfDetails?.[0]?.SendinOrder && pdfDetails?.[0]?.SendinOrder === true) {
+    //   signerMail.splice(1);
+    // }
 
-    for (let i = 0; i < signerMail.length; i++) {
+    console.log('=== STARTING EMAIL LOOP (PARALLEL) ===');
+    console.log('signerMail.length:', signerMail.length);
+
+    // Convert sequential email sending to parallel using Promise.all()
+    const emailPromises = signerMail.map(async (signer, i) => {
+      console.log(`=== PROCESSING SIGNER ${i + 1}/${signerMail.length} ===`);
       try {
         let url = `${localStorage.getItem("baseUrl")}functions/sendmailv3`;
         const headers = {
@@ -1279,12 +1285,13 @@ function PlaceHolderSign() {
           "X-Parse-Application-Id": localStorage.getItem("parseAppId"),
           sessionToken: localStorage.getItem("accesstoken")
         };
-        const objectId = signerMail[i].objectId;
+        const objectId = signer.objectId;
         const hostUrl = window.location.origin;
-        //encode this url value `${pdfDetails?.[0].objectId}/${signerMail[i].Email}/${objectId}` to base64 using `btoa` function
+        //encode this url value `${pdfDetails?.[0].objectId}/${signer.Email}/${objectId}` to base64 using `btoa` function
         const encodeBase64 = btoa(
-          `${pdfDetails?.[0].objectId}/${signerMail[i].Email}/${objectId}`
+          `${pdfDetails?.[0].objectId}/${signer.Email}/${objectId}`
         );
+        // Use placeholder so backend sendmailv3 will replace it with SecureVerify gate URL
         let signPdf = `{{secureverify_gate_url}}`;
         const orgName = pdfDetails[0]?.ExtUserPtr.Company
           ? pdfDetails[0].ExtUserPtr.Company
@@ -1311,9 +1318,9 @@ function PlaceHolderSign() {
             sender_name: senderName,
             sender_mail: senderEmail,
             sender_phone: senderPhone || "",
-            receiver_name: signerMail[i]?.Name || "",
-            receiver_email: signerMail[i].Email,
-            receiver_phone: signerMail[i]?.Phone || "",
+            receiver_name: signer?.Name || "",
+            receiver_email: signer.Email,
+            receiver_phone: signer?.Phone || "",
             expiry_date: localExpireDate,
             company_name: orgName,
             secureverify_gate_url: signPdf
@@ -1340,9 +1347,9 @@ function PlaceHolderSign() {
             sender_name: senderName,
             sender_mail: senderEmail,
             sender_phone: senderPhone || "",
-            receiver_name: signerMail[i]?.Name || "",
-            receiver_email: signerMail[i].Email,
-            receiver_phone: signerMail[i]?.Phone || "",
+            receiver_name: signer?.Name || "",
+            receiver_email: signer.Email,
+            receiver_phone: signer?.Phone || "",
             expiry_date: localExpireDate,
             company_name: orgName,
             secureverify_gate_url: signPdf
@@ -1360,7 +1367,7 @@ function PlaceHolderSign() {
         };
         let params = {
           extUserId: owner?.objectId,
-          recipient: signerMail[i].Email,
+          recipient: signer.Email,
           subject: replaceVar?.subject
             ? replaceVar?.subject
             : mailTemplate(mailparam).subject,
@@ -1374,11 +1381,18 @@ function PlaceHolderSign() {
           contactBookId: objectId
         };
 
-        sendMail = await axios.post(url, params, { headers: headers });
+        return await axios.post(url, params, { headers: headers });
       } catch (error) {
-        console.log("error", error);
+        console.log("error sending email to signer:", signer.Email, error);
+        return null;
       }
-    }
+    });
+
+    // Send all emails in parallel
+    const emailResults = await Promise.all(emailPromises);
+    // Get the last successful result for status checking
+    sendMail = emailResults.find(result => result !== null) || emailResults[emailResults.length - 1];
+    console.log('=== ALL EMAILS SENT (PARALLEL) ===');
     if (sendMail?.data?.result?.status === "success") {
       setMailStatus("success");
       try {
@@ -1445,7 +1459,7 @@ function PlaceHolderSign() {
   const handleDontShow = (isChecked) => {
     setIsDontShow(isChecked);
   };
-  //here you can add your messages in content and selector is key of particular steps
+  
 
   const tourConfig = [
     {
@@ -2109,10 +2123,6 @@ function PlaceHolderSign() {
             <div className="relative op-card overflow-hidden flex flex-col md:flex-row justify-between bg-base-300">
               {/* this component used for UI interaction and show their functionality */}
               {!checkTourStatus && !isAttchSignerModal && (
-                //this tour component used in your html component where you want to put
-                //onRequestClose function to close tour
-                //steps is defined what will be your messages and style also
-                //isOpen is takes boolean value to open
                 <Tour
                   onRequestClose={closeTour}
                   steps={tourConfig}

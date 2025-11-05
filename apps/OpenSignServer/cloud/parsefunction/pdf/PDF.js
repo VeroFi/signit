@@ -117,7 +117,16 @@ async function sendNotifyMail(doc, signUser, mailProvider, publicUrl) {
       const creatorEmail = doc.ExtUserPtr.Email;
       const signerName = signUser.Name;
       const signerEmail = signUser.Email;
-      const viewDocUrl = `${publicUrl}/recipientSignPdf/${doc.objectId}`;
+      // Normalize publicUrl to fix SSL error for localhost
+      // Use PUBLIC_URL env var if available (frontend URL), otherwise convert backend port to frontend port
+      const normalizedPublicUrl = publicUrl.replace(/^https:\/\/localhost/, 'http://localhost');
+      const frontendUrl = process.env.PUBLIC_URL
+        ? process.env.PUBLIC_URL.replace(/^https:\/\/localhost/, 'http://localhost').replace(
+            /\/$/,
+            ''
+          )
+        : normalizedPublicUrl.replace(/localhost:8080/, 'localhost:3000');
+      const viewDocUrl = `${frontendUrl}/recipientSignPdf/${doc.objectId}`;
       const subject = `Document "${pdfName}" has been signed by ${signerName}`;
       const body = `
       <html>
@@ -544,13 +553,13 @@ async function PDF(req) {
       if (data && data.imageUrl) {
         // `axios` is used to update signed pdf url in contracts_Document classes for given DocId
         const updatedDoc = await updateDoc(
-          req.params.docId, //docId
-          data.imageUrl, // SignedUrl
-          signUser.objectId, // userID
-          userIP, // client ipAddress,
-          _resDoc, // auditTrail, signers, etc data
-          className, // className based on flow
-          sign // sign base64
+          req.params.docId,
+          data.imageUrl,
+          signUser.objectId,
+          userIP,
+          _resDoc,
+          className,
+          sign
         );
         sendNotifyMail(_resDoc, signUser, mailProvider, publicUrl);
         saveFileUsage(pdfSize, data.imageUrl, _resDoc?.CreatedBy?.objectId);

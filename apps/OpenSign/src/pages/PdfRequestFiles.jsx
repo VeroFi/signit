@@ -175,12 +175,12 @@ function PdfRequestFiles(
   const route =
     window.location.pathname;
   const getQuery =
-    window.location?.search?.split("?"); //['','sendmail=false']
+    window.location?.search?.split("?");
   if (getQuery) {
-    sendmail = getQuery?.[1]?.split("=")[1]; //false
+    sendmail = getQuery?.[1]?.split("=")[1];
   }
 
-  const routeId = route && route?.split("/"); // ['', 'load', 'recipientSignPdf', ':docId', ':contactBookId']
+  const routeId = route && route?.split("/");
   if (routeId && routeId.length > 4) {
     // this condition will be occur only in guest flow in which load routeId will be include
     isGuestSignFlow = true;
@@ -215,21 +215,21 @@ function PdfRequestFiles(
     };
 
     // Use setTimeout to wait for the transition to complete
-    const timer = setTimeout(updateSize, 100); // match the transition duration
+    const timer = setTimeout(updateSize, 100);
     return () => clearTimeout(timer);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [divRef.current, isHeader]);
   const redirectUrl = pdfDetails?.[0]?.RedirectUrl || "";
   useEffect(() => {
-    if (isredirectCanceled) return; // Stop the redirect timer if canceled
+    if (isredirectCanceled) return;
     if (redirectUrl) {
       if (redirectTimeLeft === 0) {
-        openInNewTab(redirectUrl, "_self"); // Replace with your target URL
+        openInNewTab(redirectUrl, "_self");
       }
       const timer = setTimeout(() => {
-        setRedirectTimeLeft((prev) => prev - 1); // Decrement the timer
+        setRedirectTimeLeft((prev) => prev - 1);
       }, 1000);
-      return () => clearTimeout(timer); // Cleanup the timer
+      return () => clearTimeout(timer);
     }
   }, [redirectTimeLeft, isredirectCanceled, redirectUrl]);
 
@@ -241,8 +241,8 @@ function PdfRequestFiles(
     );
     try {
       const tenantDetails = await getTenantDetails(
-        user?.objectId, // userId
-        contactId // contactId
+        user?.objectId,
+        contactId
       );
       if (tenantDetails && tenantDetails === "user does not exist!") {
         alert(t("user-not-exist"));
@@ -473,6 +473,8 @@ function PdfRequestFiles(
             //if not then check user exist in contracts_Contactbook class and check tour message status
             const res = await contractUsers();
             if (res === "Error: Something went wrong!") {
+              console.error("Error in contractUsers:", res);
+              console.error("This may indicate ACL/permission issues. Check if user has access to document.");
               setHandleError(t("something-went-wrong-mssg"));
             } else if (res[0] && res?.length) {
               setContractName("_Users");
@@ -514,6 +516,8 @@ function PdfRequestFiles(
             } else if (res?.length === 0) {
               const res = await contactBook(currUserId);
               if (res === "Error: Something went wrong!") {
+                console.error("Error in contactBook:", res);
+                console.error("This may indicate ACL/permission issues. Check if contact has access to document.");
                 setHandleError(t("something-went-wrong-mssg"));
               } else if (res[0] && res.length) {
                 setContractName("_Contactbook");
@@ -581,7 +585,13 @@ function PdfRequestFiles(
       ) {
         if (documentData?.result?.error?.includes("deleted")) {
           setHandleError(t("document-deleted"));
+        } else if (documentData?.result?.error?.includes("access")) {
+          console.error("Access denied error:", documentData?.result?.error);
+          console.error("This may indicate ACL/permission issues. Check if signer has read access to document.");
+          console.error("For email-only signers, ensure linkContactToDoc was called before getDocument.");
+          setHandleError(t("something-went-wrong-mssg"));
         } else {
+          console.error("Error in getDocument:", documentData?.result?.error || documentData);
           setHandleError(t("something-went-wrong-mssg"));
         }
         setIsLoading({ isLoad: false });
@@ -593,7 +603,9 @@ function PdfRequestFiles(
       }
       setIsLoading({ isLoad: false });
     } catch (err) {
-      console.log("Error: error in getDocumentDetails", err);
+      console.error("Error in getDocumentDetails:", err);
+      console.error("Error details:", err.message, err.stack);
+      console.error("This may indicate ACL/permission issues or network errors.");
       setHandleError(t("something-went-wrong-mssg"));
       setIsLoading({ isLoad: false });
     }
@@ -674,7 +686,12 @@ function PdfRequestFiles(
             ) {
               if (documentData?.result?.error?.includes("deleted")) {
                 setHandleError(t("document-deleted"));
+              } else if (documentData?.result?.error?.includes("access")) {
+                console.error("Access denied error in embedWidgetsData:", documentData?.result?.error);
+                console.error("This may indicate ACL/permission issues. Check if signer has read access to document.");
+                setHandleError(t("something-went-wrong-mssg"));
               } else {
+                console.error("Error in contractDocument:", documentData?.result?.error || documentData);
                 setHandleError(t("something-went-wrong-mssg"));
               }
             } else {
@@ -736,115 +753,8 @@ function PdfRequestFiles(
                       updatedDoc.updatedPdfDetails?.[0]?.Placeholders[newIndex]
                         ?.email || ""
                   };
-                  const user = usermail?.Email
-                    ? usermail
-                    : updatedDoc.updatedPdfDetails?.[0]?.Signers[newIndex];
-                  if (
-                    sendmail !== "false" &&
-                    sendInOrder
-                  ) {
-                    const requestBody =
-                      updatedDoc.updatedPdfDetails?.[0]?.RequestBody;
-                    const requestSubject =
-                      updatedDoc.updatedPdfDetails?.[0]?.RequestSubject;
-                    if (user) {
-                      const expireDate = expiry;
-                      const newDate = new Date(expireDate);
-                      const localExpireDate = newDate.toLocaleDateString(
-                        "en-US",
-                        { day: "numeric", month: "long", year: "numeric" }
-                      );
-                      let senderEmail =
-                        pdfDetails?.[0]?.ExtUserPtr?.Email;
-                      let senderPhone = pdfDetails?.[0]?.ExtUserPtr?.Phone;
-                      const senderName =
-                        pdfDetails?.[0].ExtUserPtr.Name;
-                      const documentName = pdfDetails?.[0].Name;
-                      try {
-                        let url = `${localStorage.getItem("baseUrl")}functions/sendmailv3`;
-                        const headers = {
-                          "Content-Type": "application/json",
-                          "X-Parse-Application-Id":
-                            localStorage.getItem("parseAppId"),
-                          sessionToken: localStorage.getItem("accesstoken")
-                        };
-                        const objectId = user?.objectId;
-                        const hostUrl = window.location.origin;
-                        //encode this url value `${pdfDetails?.[0].objectId}/${user.Email}/${objectId}` to base64 using `btoa` function
-                        let encodeBase64;
-                        if (objectId) {
-                          encodeBase64 = btoa(
-                            `${docId}/${user.Email}/${objectId}`
-                          );
-                        } else {
-                          encodeBase64 = btoa(`${docId}/${user.Email}`);
-                        }
-                        let signPdf =
-                              `${hostUrl}/login/${encodeBase64}`;
-                        const orgName = pdfDetails[0]?.ExtUserPtr.Company
-                          ? pdfDetails[0].ExtUserPtr.Company
-                          : "";
-                        let replaceVar;
-                        if (
-                          requestBody &&
-                          requestSubject
-                        ) {
-                          const replacedRequestBody = requestBody.replace(
-                            /"/g,
-                            "'"
-                          );
-                          const htmlReqBody =
-                            "<html><head><meta http-equiv='Content-Type' content='text/html; charset=UTF-8' /></head><body>" +
-                            replacedRequestBody +
-                            "</body></html>";
-
-                          const variables = {
-                            document_title: documentName,
-                            note: pdfDetails?.[0]?.Note,
-                            sender_name: senderName,
-                            sender_mail: senderEmail,
-                            sender_phone: senderPhone,
-                            receiver_name: user?.Name || "",
-                            receiver_email: user.Email,
-                            receiver_phone: user?.Phone || "",
-                            expiry_date: localExpireDate,
-                            company_name: orgName,
-                            secureverify_gate_url: signPdf
-                          };
-                          replaceVar = replaceMailVaribles(
-                            requestSubject,
-                            htmlReqBody,
-                            variables
-                          );
-                        }
-                        const mailparam = {
-                          note: pdfDetails?.[0]?.Note || "",
-                          senderName: senderName,
-                          senderMail: senderEmail,
-                          title: documentName,
-                          organization: orgName,
-                          localExpireDate: localExpireDate,
-                          signingUrl: signPdf
-                        };
-                        let params = {
-                          replyto: senderEmail || "",
-                          extUserId: extUserId,
-                          recipient: user.Email,
-                          subject: replaceVar?.subject
-                            ? replaceVar?.subject
-                            : mailTemplate(mailparam).subject,
-                          from:
-                            senderEmail,
-                          html: replaceVar?.body
-                            ? replaceVar?.body
-                            : mailTemplate(mailparam).body
-                        };
-                        await axios.post(url, params, { headers: headers });
-                      } catch (error) {
-                        console.log("error", error);
-                      }
-                    }
-                  }
+                  // REMOVED: Sequential email sending after signing
+                  // Now all signers can sign in any order without sequential email restrictions
                   if (!isSuccessRoute) {
                     setIsredirectCanceled(false);
                   } else {
@@ -1183,11 +1093,11 @@ function PdfRequestFiles(
     }
   };
   const formatArrayToString = (arr) => {
-    if (arr.length === 0) return ""; // Handle empty array
-    if (arr.length === 1) return `${arr[0]}`; // Handle single-element array
+    if (arr.length === 0) return "";
+    if (arr.length === 1) return `${arr[0]}`;
 
-    const lastElement = arr.pop(); // Remove and store the last element
-    return `${arr.join(", ")} ${t("and")} ${lastElement}`; // Format the string
+    const lastElement = arr.pop();
+    return `${arr.join(", ")} ${t("and")} ${lastElement}`;
   };
   const requestSignTourFunction = () => {
     const pagenumbers = formatArrayToString(showSignPagenumber);
@@ -1392,7 +1302,7 @@ function PdfRequestFiles(
     const divRect = e.currentTarget.getBoundingClientRect();
     let mouseX, mouseY;
     if (isTouchEvent) {
-      const touch = e.touches[0]; // Get the first touch point
+      const touch = e.touches[0];
       mouseX = touch.clientX - divRect.left;
       mouseY = touch.clientY - divRect.top;
       setSignBtnPosition([{ xPos: mouseX, yPos: mouseY }]);
@@ -1652,8 +1562,8 @@ function PdfRequestFiles(
                   <Confetti
                     width={window.innerWidth}
                     height={window.innerHeight}
-                    recycle={false} // Prevents confetti from repeating
-                    gravity={0.1} // Adjust the gravity to control the speed
+                    recycle={false}
+                    gravity={0.1}
                   />
                 </div>
               )}
