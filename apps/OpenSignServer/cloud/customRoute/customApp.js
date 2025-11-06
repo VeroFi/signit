@@ -4,6 +4,8 @@ import dotenv from 'dotenv';
 import uploadFile from './uploadFile.js';
 import docxtopdf, { upload as docxUpload } from './docxtopdf.js';
 import decryptpdf, { upload as decryptUpload } from './decryptpdf.js';
+import verifyIdAuthRoutes from './verifyIdAuth.js';
+import verifyIdWebhookRoutes from './verifyIdWebhook.js';
 
 export const app = express();
 
@@ -15,3 +17,9 @@ app.use(express.urlencoded({ limit: '50mb', extended: true }));
 app.post('/file_upload', uploadFile);
 app.post('/docxtopdf', docxUpload.single('file'), docxtopdf);
 app.post('/decryptpdf', decryptUpload.single('file'), decryptpdf);
+
+// VerifyID authentication routes
+app.use('/auth', verifyIdAuthRoutes);
+
+// VerifyID webhook routes
+app.use('/webhooks', verifyIdWebhookRoutes);
