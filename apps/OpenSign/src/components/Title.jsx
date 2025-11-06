@@ -9,9 +9,8 @@ function Title({ title, drive }) {
       <meta name="description" content={`${title} - ${appName}`} />
       <link
         rel="icon"
-        type="image/png"
-        href={localStorage.getItem("fev_Icon")}
-        sizes="40x40"
+        type="image/x-icon"
+        href="/favicon.ico"
       />
     </Helmet>
   );

@@ -265,7 +265,7 @@ export const mailTemplate = async param => {
 
   const AppName = 'VeroFi';
   const base = (process.env.APP_URL || 'http://localhost:8080').replace(/\/$/, '');
-  const logo = `<img src="${base}/public/favicon.ico" height="50" alt="SignIt" />`;
+  const logo = `<img src="${base}/favicon.png" height="50" alt="SignIt" />`;
 
   const body = `
     <html>

@@ -1228,7 +1228,7 @@ export const addInitialData = (signerPos, setXyPosition, value, userId) => {
 //function for embed document id
 export const embedDocId = async (pdfOriginalWH, pdfDoc, documentId) => {
   const appName =
-    "OpenSign™";
+    "SignIt™";
   // `fontBytes` is used to embed custom font in pdf
   const fontBytes = await fileasbytes(
     "https://cdn.opensignlabs.com/webfonts/times.ttf"
@@ -2549,7 +2549,7 @@ export const handleSendOTP = async (email) => {
 };
 export const fetchUrl = async (url, pdfName) => {
   const appName =
-    "OpenSign™";
+    "SignIt™";
   try {
     const response = await fetch(url);
     if (!response.ok) {
@@ -2706,7 +2706,7 @@ export const handleDownloadCertificate = async (
   isZip
 ) => {
   const appName =
-    "OpenSign™";
+    "SignIt™";
   if (pdfDetails?.length > 0 && pdfDetails[0]?.CertificateUrl) {
     try {
       await fetch(pdfDetails[0] && pdfDetails[0]?.CertificateUrl);
@@ -3333,7 +3333,7 @@ export const mailTemplate = (param) => {
   const themeColor = '#264996';
   const appName = "VeroFi";
   const base = (process.env.PUBLIC_URL || 'http://localhost:3000').replace(/\/$/,'');
-  const logo = `<img src="${base}/favicon.ico" height="50" alt="SignIt" />`;
+  const logo = `<img src="${base}/favicon.png" height="50" alt="SignIt" />`;
 
   const subject = `${param.senderName} has requested you to sign "${param.title}"`;
   

@@ -105,7 +105,7 @@ async function sendNotifyMail(doc, signUser, mailProvider, publicUrl) {
   try {
     const TenantAppName = appName;
     const base = (process.env.APP_URL || 'http://localhost:8080').replace(/\/$/, '');
-    const logo = `<img src="${base}/public/favicon.ico" height="50" alt="SignIt" />`;
+    const logo = `<img src="${base}/favicon.png" height="50" alt="SignIt" />`;
     const opurl = ` <a href=www.opensignlabs.com target=_blank>here</a>`;
     const auditTrailCount = doc?.AuditTrail?.filter(x => x.Activity === 'Signed')?.length || 0;
     const signersCount = doc?.Placeholders?.length;
@@ -223,7 +223,7 @@ async function sendCompletedMail(obj) {
   const pdfName = doc.Name;
   const TenantAppName = appName;
   const base = (process.env.APP_URL || 'http://localhost:8080').replace(/\/$/, '');
-  const logo = `<img src="${base}/public/favicon.ico" height="50" alt="SignIt" />`;
+  const logo = `<img src="${base}/favicon.png" height="50" alt="SignIt" />`;
   const opurl = ` <a href=www.opensignlabs.com target=_blank>here</a>`;
   let signersMail;
   if (doc?.Signers?.length > 0) {
