@@ -31,6 +31,7 @@ const UpdateExistUserAdmin = lazy(() => import("./pages/UpdateExistUserAdmin"));
 const Preferences = lazy(() => import("./pages/Preferences"));
 const Login = lazy(() => import("./pages/Login"));
 const VerifyDocument = lazy(() => import("./pages/VerifyDocument"));
+const VerifyIdLogin = lazy(() => import("./pages/VerifyIdLogin"));
 pdfjs.GlobalWorkerOptions.workerSrc = `//unpkg.com/pdfjs-dist@${pdfjs.version}/legacy/build/pdf.worker.min.mjs`;
 const AppLoader = () => {
   return (
@@ -110,6 +111,10 @@ function App() {
                 path="/forgetpassword"
                 element={<LazyPage Page={ForgetPassword} />}
               />
+            <Route
+              path="/verifyid-login"
+              element={<LazyPage Page={VerifyIdLogin} />}
+            />
             <Route
               element={
                 <ValidateSession>

@@ -55,6 +55,9 @@ import recreateDocument from './parsefunction/recreateDocument.js';
 import loginUser from './parsefunction/loginUser.js';
 import addUser from './parsefunction/addUser.js';
 import filterDocs from './parsefunction/filterDocs.js';
+import verifyIdLogin from './parsefunction/verifyIdLogin.js';
+import checkVerifyIdSubscription from './parsefunction/checkVerifyIdSubscription.js';
+import createUserSession from './parsefunction/createUserSession.js';
 
 // This afterSave function triggers after an object is added or updated in the specified class, allowing for post-processing logic.
 Parse.Cloud.afterSave('contracts_Document', DocumentAftersave);
@@ -120,3 +123,6 @@ Parse.Cloud.define('recreatedoc', recreateDocument);
 Parse.Cloud.define('loginuser', loginUser);
 Parse.Cloud.define('adduser', addUser);
 Parse.Cloud.define('filterdocs', filterDocs);
+Parse.Cloud.define('verifyidlogin', verifyIdLogin);
+Parse.Cloud.define('checkverifyidsubscription', checkVerifyIdSubscription);
+Parse.Cloud.define('createusersession', createUserSession);
