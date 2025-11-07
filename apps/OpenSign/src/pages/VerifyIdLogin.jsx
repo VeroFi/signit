@@ -96,7 +96,16 @@ function VerifyIdLogin() {
       });
 
       // Set user as current Parse user
-      await Parse.User.become(sessionToken);
+      console.log("[VerifyID Login] Calling Parse.User.become() with session token");
+      try {
+        await Parse.User.become(sessionToken);
+        console.log("[VerifyID Login] Parse.User.become() successful");
+      } catch (becomeError) {
+        console.error("[VerifyID Login] Parse.User.become() failed:", becomeError);
+        console.error("[VerifyID Login] Error code:", becomeError.code);
+        console.error("[VerifyID Login] Error message:", becomeError.message);
+        throw new Error(`Session validation failed: ${becomeError.message}`);
+      }
       setLocalVar(user);
 
       // Get extended user details
