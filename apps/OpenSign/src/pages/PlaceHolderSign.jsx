@@ -147,6 +147,17 @@ function PlaceHolderSign() {
   const [isRadio, setIsRadio] = useState(false);
   const [currWidgetsDetails, setCurrWidgetsDetails] = useState({});
   const [isCheckbox, setIsCheckbox] = useState(false);
+  const [isDetectingFields, setIsDetectingFields] = useState(false);
+  const [detectError, setDetectError] = useState(null);
+  const [detectedFieldsInfo, setDetectedFieldsInfo] = useState(null);
+  const [highlightedFieldKey, setHighlightedFieldKey] = useState(null);
+  const [notificationPosition, setNotificationPosition] = useState({ x: 0, y: 0 });
+  const [isDraggingNotification, setIsDraggingNotification] = useState(false);
+  const notificationRef = useRef(null);
+  const [textractForms, setTextractForms] = useState([]);
+  const [currentFormIndex, setCurrentFormIndex] = useState(0);
+  const [dismissedFormIds, setDismissedFormIds] = useState(new Set());
+  const [isTextractMode, setIsTextractMode] = useState(false);
   const [isNameModal, setIsNameModal] = useState(false);
   const [mailStatus, setMailStatus] = useState("");
   const [isCurrUser, setIsCurrUser] = useState(false);
@@ -336,7 +347,7 @@ function PlaceHolderSign() {
       }
     };
     // Use setTimeout to wait for the transition to complete
-    const timer = setTimeout(updateSize, 100); // match the transition duration
+    const timer = setTimeout(updateSize, 100);
     return () => clearTimeout(timer);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [divRef.current, isHeader]);
@@ -601,6 +612,39 @@ function PlaceHolderSign() {
     getSignerPos(item, monitor);
   };
   const getSignerPos = (item, monitor) => {
+    // Check if in Textract mode and user clicked a widget button (not dragged)
+    // When clicking: item === "onclick" and monitor is the widget object
+    // When dragging: item is the widget object and monitor has getClientOffset()
+    const isClick = item === "onclick";
+    
+    if (isTextractMode && isClick && detectedFieldsInfo && monitor) {
+      // Get the current form from the original sorted array
+      const activeForms = textractForms.filter(f => !dismissedFormIds.has(f.id));
+      if (activeForms.length > 0) {
+        // Find the current form - currentFormIndex is the index in the original sorted array
+        let currentForm = null;
+        if (currentFormIndex >= 0 && currentFormIndex < textractForms.length) {
+          const formAtIndex = textractForms[currentFormIndex];
+          if (formAtIndex && !dismissedFormIds.has(formAtIndex.id)) {
+            currentForm = formAtIndex;
+          }
+        }
+        
+        // If not found, use the first active form
+        if (!currentForm && activeForms.length > 0) {
+          currentForm = activeForms[0];
+        }
+        
+        if (currentForm) {
+          // monitor is the widget object when clicking
+          console.log('[getSignerPos] Placing field from Textract form, widget:', monitor, 'form:', currentForm);
+          handlePlaceFieldFromTextractForm(monitor, currentForm);
+          return;
+        }
+      }
+      // If no current form found, fall through to normal placement
+    }
+    
     if (uniqueId) {
       const posZIndex = zIndex + 1;
       setZIndex(posZIndex);
@@ -855,6 +899,9 @@ function PlaceHolderSign() {
   };
   //function for delete signature block
   const handleDeleteSign = (key, Id) => {
+    // Note: Textract forms are handled separately via dismissedFormIds
+    // This function handles deletion of actual placed widgets/placeholders
+    
     const updateData = [];
     const filterSignerPos = signerPos.filter((data) => data.Id === Id);
     if (filterSignerPos.length > 0) {
@@ -931,7 +978,7 @@ function PlaceHolderSign() {
     const divRect = e.currentTarget.getBoundingClientRect();
     let mouseX, mouseY;
     if (isTouchEvent) {
-      const touch = e.touches[0]; // Get the first touch point
+      const touch = e.touches[0];
       mouseX = touch.clientX - divRect.left;
       mouseY = touch.clientY - divRect.top;
       setSignBtnPosition([{ xPos: mouseX, yPos: mouseY }]);
@@ -1117,6 +1164,526 @@ function PlaceHolderSign() {
       alert(t("something-went-wrong-mssg"));
     }
   };
+  /**
+   * Convert Textract normalized coordinates (0-1, top-left origin) to frontend PDF point space
+   */
+  const convertTextractToFrontendCoords = (textractGeometry, pageNum) => {
+    // Get page dimensions
+    const pageData = pdfOriginalWH.find(p => p.pageNumber === pageNum);
+    if (!pageData) {
+      console.warn(`[convertTextractToFrontendCoords] Page ${pageNum} not found in pdfOriginalWH`);
+      // Fallback: use first page or default Letter size
+      const fallback = pdfOriginalWH[0] || { width: 612, height: 792 };
+      return {
+        x: textractGeometry.Left * fallback.width,
+        y: textractGeometry.Top * fallback.height,
+        width: textractGeometry.Width * fallback.width,
+        height: textractGeometry.Height * fallback.height
+      };
+    }
+    
+    // Textract: normalized 0-1, top-left origin
+    // Frontend: PDF point space, top-left origin (already converted from PDF.js bottom-left)
+    // Convert normalized to PDF point space
+    return {
+      x: textractGeometry.Left * pageData.width,
+      y: textractGeometry.Top * pageData.height,
+      width: textractGeometry.Width * pageData.width,
+      height: textractGeometry.Height * pageData.height
+    };
+  };
+
+  /**
+   * Handle placing a field from Textract form when user clicks widget button
+   */
+  const handlePlaceFieldFromTextractForm = (item, currentForm) => {
+    console.log('[handlePlaceFieldFromTextractForm] Called with item:', item, 'currentForm:', currentForm);
+    
+    if (!currentForm || !uniqueId) {
+      console.warn('[handlePlaceFieldFromTextractForm] Missing currentForm or uniqueId', { currentForm, uniqueId });
+      return;
+    }
+    
+    // Convert coordinates - ALWAYS use VALUE geometry for placement
+    const valueGeometry = currentForm.value?.geometry?.BoundingBox;
+    if (!valueGeometry) {
+      console.warn('[handlePlaceFieldFromTextractForm] No VALUE geometry available', currentForm);
+      return;
+    }
+    
+    const coords = convertTextractToFrontendCoords(valueGeometry, currentForm.pageNumber);
+    const containerScale = getContainerScale(pdfOriginalWH, currentForm.pageNumber, containerWH);
+    const currentScale = scale || 1;
+    
+    // Get widget type from the widget object (item is the widget object from WidgetList)
+    const widgetType = item?.type || item?.text;
+    console.log('[handlePlaceFieldFromTextractForm] Widget type:', widgetType, 'from item:', item);
+    
+    if (!widgetType) {
+      console.warn('[handlePlaceFieldFromTextractForm] No widget type found in item:', item);
+      return;
+    }
+    
+    // Calculate position to match the highlight exactly
+    // Highlight position: valueBox.Left * pageData.width * containerScale * currentScale
+    // Placeholder xPos calculation: xPosition * containerScale * props.scale
+    // So we need: xPosition * containerScale * currentScale = valueBox.Left * pageData.width * containerScale * currentScale
+    // Therefore: xPosition = valueBox.Left * pageData.width = coords.x
+    // Same for yPosition and dimensions
+    
+    // Get page dimensions for reference
+    const pageData = pdfOriginalWH.find(p => p.pageNumber === currentForm.pageNumber);
+    if (!pageData) {
+      console.warn('[handlePlaceFieldFromTextractForm] Page data not found');
+      return;
+    }
+    
+    // Store position in PDF point space (coords.x and coords.y are already in PDF point space)
+    // The xPos/yPos functions will multiply by containerScale * scale when rendering
+    // This matches how highlights are calculated: Left * pageData.width * containerScale * currentScale
+    const fieldKey = randomId();
+    const dropObj = {
+      xPosition: coords.x,  // PDF point space - will be multiplied by containerScale * scale in xPos()
+      yPosition: coords.y,  // PDF point space - will be multiplied by containerScale * scale in yPos()
+      Width: coords.width,  // PDF point space - will be multiplied by containerScale * scale in posWidth()
+      Height: coords.height, // PDF point space - will be multiplied by containerScale * scale in posHeight()
+      type: widgetType,
+      key: fieldKey,
+      pageNumber: currentForm.pageNumber,
+      scale: containerScale,
+      zIndex: 10001, // Higher than highlights (9998-10000) so field is clickable and editable
+      options: addWidgetOptions(widgetType, owner),
+      isStamp: false
+    };
+    
+    console.log('[handlePlaceFieldFromTextractForm] Placing field at:', {
+      xPosition: dropObj.xPosition,
+      yPosition: dropObj.yPosition,
+      Width: dropObj.Width,
+      Height: dropObj.Height,
+      pageNumber: dropObj.pageNumber,
+      containerScale,
+      currentScale,
+      coords
+    });
+    
+    // Add to signerPos
+    const signer = signersdata.find((x) => x.Id === uniqueId);
+    if (signer) {
+      const placeHolder = { pageNumber: currentForm.pageNumber, pos: [dropObj] };
+      
+      setSignerPos(prevSignerPos => {
+        const filterSignerPos = prevSignerPos.find((data) => data.Id === uniqueId);
+        const getPlaceHolder = filterSignerPos?.placeHolder;
+        
+        if (getPlaceHolder) {
+          const currentPagePosition = getPlaceHolder.find(
+            (data) => data.pageNumber === currentForm.pageNumber
+          );
+          
+          if (currentPagePosition) {
+            const updatePlace = getPlaceHolder.filter(
+              (data) => data.pageNumber !== currentForm.pageNumber
+            );
+            const getPos = currentPagePosition?.pos;
+            const newSignPos = getPos.concat(dropObj);
+            let xyPos = { pageNumber: currentForm.pageNumber, pos: newSignPos };
+            updatePlace.push(xyPos);
+            
+            return prevSignerPos.map((x) =>
+              x.Id === uniqueId ? { ...x, placeHolder: updatePlace } : x
+            );
+          } else {
+            return prevSignerPos.map((x) =>
+              x.Id === uniqueId && x?.placeHolder
+                ? { ...x, placeHolder: [...x.placeHolder, placeHolder] }
+                : x.Id === uniqueId
+                  ? { ...x, placeHolder: [placeHolder] }
+                  : x
+            );
+          }
+        } else {
+          return prevSignerPos.map((x) =>
+            x.Id === uniqueId && x?.placeHolder
+              ? { ...x, placeHolder: [...x.placeHolder, placeHolder] }
+              : x.Id === uniqueId
+                ? { ...x, placeHolder: [placeHolder] }
+                : x
+          );
+        }
+      });
+      
+      setCurrWidgetsDetails(dropObj);
+      setZIndex(prev => prev + 1);
+      
+      // Open configuration menu for checkbox, dropdown, and radiobutton (same as normal drag behavior)
+      if (widgetType === "dropdown") {
+        setShowDropdown(true);
+      } else if (widgetType === "checkbox") {
+        setIsCheckbox(true);
+      } else if (widgetType === radioButtonWidget) {
+        setIsRadio(true);
+      }
+    }
+    
+    // DO NOT dismiss the form - let user place multiple fields on the same form
+    // Form will only be dismissed when user explicitly clicks the X button (handleDismissForm)
+    // or closes the message box (closeDetectedFieldsNotification)
+  };
+
+  /**
+   * Sort forms by reading order: page number, then top to bottom, then left to right
+   */
+  const sortFormsByPosition = (forms) => {
+    return [...forms].sort((a, b) => {
+      // First sort by page number
+      if (a.pageNumber !== b.pageNumber) {
+        return a.pageNumber - b.pageNumber;
+      }
+      
+      // Then by Y position (top to bottom) - use KEY geometry if available, fallback to VALUE
+      const aGeometry = a.key?.geometry?.BoundingBox || a.value?.geometry?.BoundingBox;
+      const bGeometry = b.key?.geometry?.BoundingBox || b.value?.geometry?.BoundingBox;
+      
+      if (!aGeometry || !bGeometry) {
+        return 0; // Keep original order if no geometry
+      }
+      
+      // Compare Top position (smaller = higher on page)
+      const aTop = aGeometry.Top || 0;
+      const bTop = bGeometry.Top || 0;
+      
+      // Allow some tolerance for forms on the same "line" (within 0.02 of page height)
+      const yTolerance = 0.02;
+      if (Math.abs(aTop - bTop) > yTolerance) {
+        return aTop - bTop; // Top to bottom
+      }
+      
+      // If roughly on same line, sort left to right by Left position
+      const aLeft = aGeometry.Left || 0;
+      const bLeft = bGeometry.Left || 0;
+      return aLeft - bLeft; // Left to right
+    });
+  };
+
+  /**
+   * Navigate to a specific form by its index in the original sorted array
+   */
+  const navigateToForm = (formIndex, form) => {
+    if (formIndex < 0 || formIndex >= textractForms.length) return;
+    
+    // Check if form is still active
+    if (dismissedFormIds.has(form.id)) return;
+    
+    setCurrentFormIndex(formIndex);
+    
+    // Find the form's index in the active forms array for display
+    const activeForms = textractForms.filter(f => !dismissedFormIds.has(f.id));
+    const activeIndex = activeForms.findIndex(f => f.id === form.id);
+    
+    setDetectedFieldsInfo(prev => ({
+      ...prev,
+      currentIndex: activeIndex >= 0 ? activeIndex : 0
+    }));
+    
+    // Switch to the form's page if needed
+    if (form.pageNumber !== pageNumber) {
+      setPageNumber(form.pageNumber);
+    }
+  };
+
+  /**
+   * Navigate through Textract forms (forms are already sorted by position)
+   */
+  const navigateTextractForm = (direction) => {
+    // Forms are already stored in sorted order (top-left to bottom-right)
+    // Filter to get active forms (maintains sorted order)
+    const activeForms = textractForms.filter(f => !dismissedFormIds.has(f.id));
+    if (activeForms.length === 0) return;
+    
+    // Find current form's index in the active forms array
+    // currentFormIndex is the index in the original sorted array
+    // We need to find where that form is in the active array
+    let currentActiveIndex = 0;
+    if (currentFormIndex < textractForms.length) {
+      const currentFormId = textractForms[currentFormIndex]?.id;
+      if (currentFormId) {
+        const foundIndex = activeForms.findIndex(f => f.id === currentFormId);
+        if (foundIndex >= 0) {
+          currentActiveIndex = foundIndex;
+        }
+      }
+    }
+    
+    let newActiveIndex = currentActiveIndex;
+    
+    if (direction === 'next') {
+      newActiveIndex = (currentActiveIndex + 1) % activeForms.length;
+    } else if (direction === 'prev') {
+      newActiveIndex = (currentActiveIndex - 1 + activeForms.length) % activeForms.length;
+    }
+    
+    const newForm = activeForms[newActiveIndex];
+    // Find the new form's index in the original sorted array
+    const newIndexInOriginal = textractForms.findIndex(f => f.id === newForm.id);
+    const finalIndex = newIndexInOriginal >= 0 ? newIndexInOriginal : 0;
+    
+    setCurrentFormIndex(finalIndex);
+    setDetectedFieldsInfo(prev => ({
+      ...prev,
+      currentIndex: newActiveIndex
+    }));
+    
+    // Switch to the page if needed
+    if (newForm && newForm.pageNumber !== pageNumber) {
+      setPageNumber(newForm.pageNumber);
+    }
+  };
+
+  /**
+   * Dismiss (unhighlight) the current form
+   */
+  const handleDismissForm = () => {
+    const activeForms = textractForms.filter(f => !dismissedFormIds.has(f.id));
+    if (activeForms.length === 0) return;
+    
+    // Find the current form's index in the active forms array
+    let currentActiveIndex = 0;
+    if (currentFormIndex < textractForms.length) {
+      const currentFormId = textractForms[currentFormIndex]?.id;
+      if (currentFormId) {
+        const foundIndex = activeForms.findIndex(f => f.id === currentFormId);
+        if (foundIndex >= 0) {
+          currentActiveIndex = foundIndex;
+        }
+      }
+    }
+    
+    const currentForm = activeForms[currentActiveIndex];
+    if (!currentForm) return;
+    
+    // Create the updated dismissed set (including current form)
+    const updatedDismissedIds = new Set([...dismissedFormIds, currentForm.id]);
+    
+    // Get remaining forms after dismissal (using updated dismissed set)
+    const remaining = textractForms.filter(f => !updatedDismissedIds.has(f.id));
+    
+    if (remaining.length === 0) {
+      // No more forms, exit Textract mode
+      setDismissedFormIds(updatedDismissedIds);
+      setDetectedFieldsInfo(null);
+      setIsTextractMode(false);
+      setCurrentFormIndex(0);
+    } else {
+      // Navigate to the next form in reading order
+      // After dismissing the form at currentActiveIndex in activeForms:
+      // - The form that was at currentActiveIndex + 1 in activeForms is now at currentActiveIndex in remaining
+      // - If we were at the last form, go to the previous one (last remaining)
+      let newActiveIndex;
+      
+      // Example: activeForms = [A, B, C, D], we're at index 1 (B)
+      // After dismissing B: remaining = [A, C, D]
+      // - A is at index 0 (was 0, still 0)
+      // - C is at index 1 (was 2, now 1) <- this is the next form
+      // So if we were at index 1, we should go to index 1 in remaining (which is C)
+      
+      if (currentActiveIndex < activeForms.length - 1) {
+        // There was a form after this one in activeForms
+        // After dismissing current form, the next form shifts down by 1 index
+        // So it's now at currentActiveIndex in remaining
+        newActiveIndex = currentActiveIndex;
+      } else {
+        // We were at the last form, go to the previous one (last remaining)
+        newActiveIndex = remaining.length - 1;
+      }
+      
+      // Make sure newActiveIndex is valid
+      if (newActiveIndex >= remaining.length) {
+        newActiveIndex = Math.max(0, remaining.length - 1);
+      }
+      if (newActiveIndex < 0) {
+        newActiveIndex = 0;
+      }
+      
+      const newForm = remaining[newActiveIndex];
+      if (newForm) {
+        // Find the new form's index in the original sorted array
+        const newIndexInOriginal = textractForms.findIndex(f => f.id === newForm.id);
+        const finalIndex = newIndexInOriginal >= 0 ? newIndexInOriginal : 0;
+        
+        // Update state - use the index in remaining array for currentIndex display
+        setDismissedFormIds(updatedDismissedIds);
+        setCurrentFormIndex(finalIndex);
+        setDetectedFieldsInfo(prev => ({
+          ...prev,
+          count: remaining.length,
+          currentIndex: newActiveIndex  // This is the index in the remaining array (0-based)
+        }));
+        
+        // Switch page if needed
+        if (newForm.pageNumber !== pageNumber) {
+          setPageNumber(newForm.pageNumber);
+        }
+      } else {
+        // Fallback: just update dismissed IDs
+        setDismissedFormIds(updatedDismissedIds);
+      }
+    }
+  };
+
+  const closeDetectedFieldsNotification = () => {
+    // Close notification and disable Textract mode (removes all highlights)
+    setDetectedFieldsInfo(null);
+    setHighlightedFieldKey(null);
+    setNotificationPosition({ x: 0, y: 0 }); // Reset position when closing
+    setIsTextractMode(false);
+    setCurrentFormIndex(0);
+    setDismissedFormIds(new Set()); // Reset dismissed forms
+    // Note: We keep textractForms in state in case user wants to re-enable later
+  };
+
+  // Handle notification drag
+  const handleNotificationMouseDown = (e) => {
+    // Don't drag if clicking on buttons or interactive elements
+    if (e.target.closest('button') || e.target.closest('.op-btn') || e.target.closest('input') || e.target.closest('select')) {
+      return;
+    }
+    
+    setIsDraggingNotification(true);
+    const rect = notificationRef.current?.getBoundingClientRect();
+    if (!rect) return;
+    
+    // Calculate offset from mouse position to current notification position
+    const offsetX = e.clientX - rect.left;
+    const offsetY = e.clientY - rect.top;
+
+    const handleMouseMove = (e) => {
+      // Calculate new position relative to viewport
+      const newX = e.clientX - offsetX;
+      const newY = e.clientY - offsetY;
+      
+      // Keep notification within viewport bounds
+      const maxX = window.innerWidth - rect.width;
+      const maxY = window.innerHeight - rect.height;
+      
+      setNotificationPosition({ 
+        x: Math.max(0, Math.min(newX, maxX)), 
+        y: Math.max(0, Math.min(newY, maxY)) 
+      });
+    };
+
+    const handleMouseUp = () => {
+      setIsDraggingNotification(false);
+      document.removeEventListener('mousemove', handleMouseMove);
+      document.removeEventListener('mouseup', handleMouseUp);
+    };
+
+    document.addEventListener('mousemove', handleMouseMove);
+    document.addEventListener('mouseup', handleMouseUp);
+  };
+
+  // Auto-detect fields handler
+  const handleAutoDetectFields = async () => {
+    if (!documentId) {
+      alert(t("something-went-wrong-mssg") || "Document ID is missing");
+      return;
+    }
+
+    if (!signersdata || signersdata.length === 0) {
+      alert(t("please-add-signers") || "Please add signers before auto-detecting fields");
+      return;
+    }
+
+    if (!pdfBase64Url) {
+      alert(t("pdf-not-loaded") || "PDF not loaded");
+      return;
+    }
+
+    if (pdfDetails?.[0]?.IsCompleted) {
+      alert(t("document-already-completed") || "Document is already completed");
+      return;
+    }
+
+    setIsDetectingFields(true);
+    setDetectError(null);
+
+    try {
+      console.log('[PlaceHolderSign] Calling readBySignIt for document:', documentId);
+      const result = await Parse.Cloud.run('readBySignIt', { documentId });
+
+      if (result && result.success && result.forms && result.forms.length > 0) {
+        console.log('[PlaceHolderSign] Detected', result.forms.length, 'forms');
+        
+        // Sort forms by reading order (top-left to bottom-right, page by page)
+        const sortFormsByPosition = (forms) => {
+          return [...forms].sort((a, b) => {
+            // First sort by page number
+            if (a.pageNumber !== b.pageNumber) {
+              return a.pageNumber - b.pageNumber;
+            }
+            
+            // Then by Y position (top to bottom) - use KEY geometry if available, fallback to VALUE
+            const aGeometry = a.key?.geometry?.BoundingBox || a.value?.geometry?.BoundingBox;
+            const bGeometry = b.key?.geometry?.BoundingBox || b.value?.geometry?.BoundingBox;
+            
+            if (!aGeometry || !bGeometry) {
+              return 0; // Keep original order if no geometry
+            }
+            
+            // Compare Top position (smaller = higher on page)
+            const aTop = aGeometry.Top || 0;
+            const bTop = bGeometry.Top || 0;
+            
+            // Allow some tolerance for forms on the same "line" (within 0.02 of page height)
+            const yTolerance = 0.02;
+            if (Math.abs(aTop - bTop) > yTolerance) {
+              return aTop - bTop; // Top to bottom
+            }
+            
+            // If roughly on same line, sort left to right by Left position
+            const aLeft = aGeometry.Left || 0;
+            const bLeft = bGeometry.Left || 0;
+            return aLeft - bLeft; // Left to right
+          });
+        };
+        
+        const sortedForms = sortFormsByPosition(result.forms);
+        
+        // Store sorted forms and initialize Textract mode
+        setTextractForms(sortedForms);
+        setCurrentFormIndex(0);
+        setDismissedFormIds(new Set());
+        setIsTextractMode(true);
+        
+        const activeForms = sortedForms.filter(f => !dismissedFormIds.has(f.id));
+        if (activeForms.length > 0) {
+          setDetectedFieldsInfo({
+            count: activeForms.length,
+            currentIndex: 0
+          });
+          
+          // Switch to first form's page (which is now the top-left form)
+          if (activeForms[0].pageNumber !== pageNumber) {
+            setPageNumber(activeForms[0].pageNumber);
+          }
+        } else {
+          alert(t("no-fields-detected") || "No forms detected in this document. Try adding fields manually.");
+          setIsTextractMode(false);
+        }
+      } else {
+        alert(t("no-fields-detected") || "No forms detected in this document. Try adding fields manually.");
+        setIsTextractMode(false);
+      }
+    } catch (error) {
+      console.error('[PlaceHolderSign] Auto-detect error:', error);
+      const errorMessage = error.message || t("detection-failed") || "Failed to detect fields";
+      setDetectError(errorMessage);
+      alert(errorMessage);
+    } finally {
+      setIsDetectingFields(false);
+    }
+  };
+
   //function to use save placeholder details in contracts_document
   const saveDocumentDetails = async () => {
     setIsUiLoading(true);
@@ -1198,10 +1765,10 @@ function PlaceHolderSign() {
   const copytoclipboard = (text) => {
     copytoData(text);
     if (copyUrlRef.current) {
-      copyUrlRef.current.textContent = text; // Update text safely
+      copyUrlRef.current.textContent = text;
     }
     setCopied(true);
-    setTimeout(() => setCopied(false), 1500); // Reset copied state after 1.5 seconds
+    setTimeout(() => setCopied(false), 1500);
   };
   //function show signer list and share link to share signUrl
   const handleShareList = () => {
@@ -2561,6 +3128,146 @@ function PlaceHolderSign() {
                     isShowAdvanceFeature={true}
                   />
 
+                  {/* Auto-detect fields button */}
+                  {pdfBase64Url && signersdata.length > 0 && !pdfDetails?.[0]?.IsCompleted && (
+                    <div className="mb-2 px-2">
+                      <button
+                        onClick={handleAutoDetectFields}
+                        disabled={isDetectingFields}
+                        type="button"
+                        className="op-btn op-btn-primary op-btn-sm w-full"
+                        title={t("auto-detect-fields-tooltip") || "Automatically detect signature, date, and initial fields"}
+                      >
+                        {isDetectingFields ? (
+                          <>
+                            <span className="loading loading-spinner loading-sm mr-2"></span>
+                            {t("detecting-fields") || "Detecting fields..."}
+                          </>
+                        ) : (
+                          <>
+                            <i className="fa-light fa-magic-wand-sparkles mr-2"></i>
+                            {t("auto-detect-fields") || "Auto-detect fields"}
+                          </>
+                        )}
+                      </button>
+                      {detectError && (
+                        <div className="text-red-500 text-sm mt-1">{detectError}</div>
+                      )}
+                    </div>
+                  )}
+
+                  {/* Detected Fields Notification */}
+                  {detectedFieldsInfo && (
+                    <div 
+                      ref={notificationRef}
+                      className="fixed z-[9999] bg-base-100 shadow-2xl rounded-lg border-2 border-primary p-4 min-w-[300px] max-w-[500px] select-none"
+                      style={{
+                        bottom: notificationPosition.x === 0 && notificationPosition.y === 0 ? '16px' : 'auto',
+                        left: notificationPosition.x === 0 && notificationPosition.y === 0 ? '50%' : notificationPosition.x + 'px',
+                        top: notificationPosition.x !== 0 || notificationPosition.y !== 0 ? notificationPosition.y + 'px' : 'auto',
+                        transform: notificationPosition.x === 0 && notificationPosition.y === 0 ? 'translateX(-50%)' : 'none',
+                        cursor: isDraggingNotification ? 'grabbing' : 'grab',
+                        userSelect: 'none'
+                      }}
+                      onMouseDown={handleNotificationMouseDown}
+                    >
+                      <div className="flex items-center justify-between mb-3">
+                        <div className="flex items-center gap-2">
+                          <i className="fa-light fa-check-circle text-success text-xl"></i>
+                          <h3 className="font-semibold text-base">
+                            {t("fields-detected") || "Fields Detected"}
+                          </h3>
+                        </div>
+                        <button
+                          onClick={closeDetectedFieldsNotification}
+                          className="op-btn op-btn-ghost op-btn-sm op-btn-circle"
+                          title={t("close") || "Close"}
+                          onMouseDown={(e) => e.stopPropagation()}
+                        >
+                          <i className="fa-light fa-times"></i>
+                        </button>
+                      </div>
+                      
+                      <div className="mb-3 text-sm">
+                        {(() => {
+                          const activeFormsCount = textractForms.filter(f => !dismissedFormIds.has(f.id)).length;
+                          return (
+                            <p className="text-base-content/80">
+                              {t("detected-fields-count", { 
+                                count: activeFormsCount,
+                                current: detectedFieldsInfo.currentIndex + 1,
+                                total: activeFormsCount
+                              }) || 
+                              `Found ${activeFormsCount} form(s). Showing ${detectedFieldsInfo.currentIndex + 1} of ${activeFormsCount}`}
+                            </p>
+                          );
+                        })()}
+                        {(() => {
+                          const activeForms = textractForms.filter(f => !dismissedFormIds.has(f.id));
+                          const currentForm = activeForms[detectedFieldsInfo.currentIndex];
+                          if (currentForm) {
+                            return (
+                              <div className="flex items-center justify-between mt-1">
+                                <p className="text-xs text-base-content/60">
+                                  {t("page") || "Page"}: {currentForm.pageNumber}
+                                </p>
+                                <button
+                                  onClick={handleDismissForm}
+                                  className="op-btn op-btn-ghost op-btn-xs op-btn-circle ml-2 text-error hover:bg-error hover:text-error-content"
+                                  title={t("dismiss-form") || "Dismiss this form"}
+                                  onMouseDown={(e) => e.stopPropagation()}
+                                >
+                                  <i className="fa-light fa-times"></i>
+                                </button>
+                              </div>
+                            );
+                          }
+                          return null;
+                        })()}
+                      </div>
+
+                      {(() => {
+                        const activeForms = textractForms.filter(f => !dismissedFormIds.has(f.id));
+                        if (activeForms.length > 1) {
+                          return (
+                            <div className="flex items-center justify-center gap-4">
+                              <button
+                                onClick={() => navigateTextractForm('prev')}
+                                className="op-btn op-btn-primary op-btn-sm"
+                                title={t("previous-form") || "Previous form"}
+                                onMouseDown={(e) => e.stopPropagation()}
+                              >
+                                <i className="fa-light fa-arrow-left"></i>
+                                <span className="ml-1">{t("previous") || "Previous"}</span>
+                              </button>
+                              <span className="text-sm text-base-content/60">
+                                {detectedFieldsInfo.currentIndex + 1} / {activeForms.length}
+                              </span>
+                              <button
+                                onClick={() => navigateTextractForm('next')}
+                                className="op-btn op-btn-primary op-btn-sm"
+                                title={t("next-form") || "Next form"}
+                                onMouseDown={(e) => e.stopPropagation()}
+                              >
+                                <span className="mr-1">{t("next") || "Next"}</span>
+                                <i className="fa-light fa-arrow-right"></i>
+                              </button>
+                            </div>
+                          );
+                        } else if (activeForms.length === 1) {
+                          return (
+                            <div className="flex items-center justify-center">
+                              <span className="text-sm text-base-content/60">
+                                {detectedFieldsInfo.currentIndex + 1} / {activeForms.length}
+                              </span>
+                            </div>
+                          );
+                        }
+                        return null;
+                      })()}
+                    </div>
+                  )}
+
                   {/* pdf header which contain funish back button */}
                   <Header
                     completeBtnTitle={t("next")}
@@ -2614,6 +3321,11 @@ function PlaceHolderSign() {
                         isResize={isResize}
                         setZIndex={setZIndex}
                         setIsPageCopy={setIsPageCopy}
+                        textractForms={textractForms}
+                        currentFormIndex={currentFormIndex}
+                        dismissedFormIds={dismissedFormIds}
+                        isTextractMode={isTextractMode}
+                        onFormClick={navigateToForm}
                         signersdata={signersdata}
                         handleLinkUser={handleLinkUser}
                         setUniqueId={setUniqueId}
@@ -2637,6 +3349,7 @@ function PlaceHolderSign() {
                         unSignedWidgetId={unSignedWidgetId}
                         divRef={divRef}
                         currWidgetsDetails={currWidgetsDetails}
+                        highlightedFieldKey={highlightedFieldKey}
                       />
                     )}
                   </div>

@@ -816,8 +816,11 @@ function Placeholder(props) {
           }}
           bounds="parent"
           className="signYourselfBlock"
+          data-field-key={props.pos.key}
           style={{
-            border: "1px solid #007bff",
+            border: props.pos.isDetected && props.pos.key === props.highlightedFieldKey
+              ? "3px solid #3b82f6"
+              : "1px solid #007bff",
             borderRadius: "2px",
             cursor: getCursor(),
             zIndex:
@@ -830,7 +833,11 @@ function Placeholder(props) {
                   : "5",
             opacity:
               props.isNeedSign && props.data?.Id !== props?.uniqueId && "0.4",
-            background: handleBackground()
+            background: handleBackground(),
+            boxShadow: props.pos.isDetected && props.pos.key === props.highlightedFieldKey
+              ? "0 0 20px rgba(59, 130, 246, 0.8)"
+              : "none",
+            transition: "box-shadow 0.3s ease, border 0.3s ease"
           }}
           onDrag={(_, d) => {
             props.handleTabDrag && props.handleTabDrag(props.pos.key);

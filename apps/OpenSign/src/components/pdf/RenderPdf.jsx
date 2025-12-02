@@ -1,4 +1,4 @@
-import React, { useState, useRef } from "react";
+import React, { useState, useRef, useEffect, useCallback } from "react";
 import RSC from "react-scrollbars-custom";
 import { Document, Page } from "react-pdf";
 import {
@@ -23,10 +23,13 @@ function RenderPdf(props) {
     y1: 0,
     y2: 0
   });
+  const [hoveredFormId, setHoveredFormId] = useState(null);
   //check isGuestSigner is present in local if yes than handle login flow header in mobile view
   const isGuestSigner = localStorage.getItem("isGuestSigner");
 
   const pdfContainerRef = useRef(null);
+  const scrollContainerRef = useRef(null);
+  const currentFormHighlightRef = useRef(null);
 
   // enable pinch to zoom only on actual pdf wrapper
   usePdfPinchZoom(
@@ -35,6 +38,26 @@ function RenderPdf(props) {
     props.setScale,
     props.setZoomPercent
   );
+
+  // Scroll to current form when it changes
+  useEffect(() => {
+    if (!props.isTextractMode || !currentFormHighlightRef.current) return;
+    
+    // Small delay to ensure DOM is updated and page is rendered
+    const timeoutId = setTimeout(() => {
+      const highlightElement = currentFormHighlightRef.current;
+      if (!highlightElement) return;
+      
+      // Use scrollIntoView which handles both vertical and horizontal scrolling
+      highlightElement.scrollIntoView({
+        behavior: 'smooth',
+        block: 'center',
+        inline: 'center'
+      });
+    }, 300);
+    
+    return () => clearTimeout(timeoutId);
+  }, [props.currentFormIndex, props.pageNumber, props.isTextractMode]);
 
   const handleGuideline = (isShow, x = 0, y = 0, width = 0, height = 0) => {
     if (isShow) {
@@ -212,12 +235,185 @@ function RenderPdf(props) {
       setScaledHeight(scaleHeight);
     }
   };
+
+  // Form highlight overlay for Textract forms
+  const FormHighlightOverlay = () => {
+    if (!props.isTextractMode || !props.textractForms || props.textractForms.length === 0) return null;
+    
+    // Get all active forms (across all pages) to find the current one by global index
+    const allActiveForms = props.textractForms.filter(f => !props.dismissedFormIds.has(f.id));
+    if (allActiveForms.length === 0) return null;
+    
+    // Get the current form
+    let currentForm = null;
+    if (props.currentFormIndex >= 0 && props.currentFormIndex < props.textractForms.length) {
+      const formAtIndex = props.textractForms[props.currentFormIndex];
+      // Check if this form is still active (not dismissed)
+      if (formAtIndex && !props.dismissedFormIds.has(formAtIndex.id)) {
+        currentForm = formAtIndex;
+      }
+    }
+    
+    // If the form at currentFormIndex is dismissed, find the next active form
+    if (!currentForm && allActiveForms.length > 0) {
+      // Find the first active form that comes after currentFormIndex in the original array
+      for (let i = props.currentFormIndex + 1; i < props.textractForms.length; i++) {
+        const form = props.textractForms[i];
+        if (form && !props.dismissedFormIds.has(form.id)) {
+          currentForm = form;
+          break;
+        }
+      }
+      // If not found after, look before
+      if (!currentForm) {
+        for (let i = props.currentFormIndex - 1; i >= 0; i--) {
+          const form = props.textractForms[i];
+          if (form && !props.dismissedFormIds.has(form.id)) {
+            currentForm = form;
+            break;
+          }
+        }
+      }
+      // Last resort: use first active form
+      if (!currentForm) {
+        currentForm = allActiveForms[0];
+      }
+    }
+    
+    // Filter forms for current page - show ALL forms on this page
+    const activeFormsOnPage = props.textractForms.filter(f => 
+      !props.dismissedFormIds.has(f.id) && 
+      f.pageNumber === props.pageNumber
+    );
+    
+    if (activeFormsOnPage.length === 0) return null;
+    
+    const containerScale = getContainerScale(
+      props.pdfOriginalWH,
+      props.pageNumber,
+      props.containerWH
+    );
+    const currentScale = props.scale || 1;
+    const pageData = props.pdfOriginalWH.find(p => p.pageNumber === props.pageNumber);
+    if (!pageData) return null;
+    
+    // Render all forms on this page, with current form more prominent
+    return (
+      <>
+        {activeFormsOnPage.map((form, index) => {
+          const isCurrentForm = currentForm && form.id === currentForm.id;
+          const keyBox = form.key?.geometry?.BoundingBox;
+          const valueBox = form.value?.geometry?.BoundingBox || keyBox;
+          
+          if (!keyBox || !valueBox) return null;
+          
+          const keyLeft = keyBox.Left * pageData.width * containerScale * currentScale;
+          const keyTop = keyBox.Top * pageData.height * containerScale * currentScale;
+          const keyWidth = keyBox.Width * pageData.width * containerScale * currentScale;
+          const keyHeight = keyBox.Height * pageData.height * containerScale * currentScale;
+          
+          const valueLeft = valueBox.Left * pageData.width * containerScale * currentScale;
+          const valueTop = valueBox.Top * pageData.height * containerScale * currentScale;
+          const valueWidth = valueBox.Width * pageData.width * containerScale * currentScale;
+          const valueHeight = valueBox.Height * pageData.height * containerScale * currentScale;
+          
+          // Check if this form is being hovered
+          const isHovered = hoveredFormId === form.id;
+          
+          // Current form: brighter, thicker border. Other forms: dimmer, thinner border
+          // Hovered forms get slightly brighter
+          const keyBorderColor = isCurrentForm ? '#3b82f6' : (isHovered ? '#60a5fa' : '#93c5fd');
+          const keyBorderWidth = isCurrentForm ? '3px' : (isHovered ? '2px' : '1px');
+          const keyBgOpacity = isCurrentForm ? 0.8 : (isHovered ? 0.6 : 0.4);
+          
+          const valueBorderColor = isCurrentForm ? '#1f2937' : (isHovered ? '#374151' : '#6b7280');
+          const valueBorderWidth = isCurrentForm ? '3px' : (isHovered ? '2px' : '1px');
+          const valueBgOpacity = isCurrentForm ? 0.8 : (isHovered ? 0.7 : 0.5);
+          
+          // Handler to navigate to this form when clicked
+          const handleFormClick = (e) => {
+            e.stopPropagation();
+            if (props.onFormClick) {
+              // Find this form's index in the original sorted array
+              const formIndex = props.textractForms.findIndex(f => f.id === form.id);
+              if (formIndex >= 0) {
+                props.onFormClick(formIndex, form);
+              }
+            }
+          };
+
+          // Calculate bounding box for the combined KEY and VALUE area
+          const combinedLeft = Math.min(keyLeft, valueLeft);
+          const combinedTop = Math.min(keyTop, valueTop);
+          const combinedRight = Math.max(keyLeft + keyWidth, valueLeft + valueWidth);
+          const combinedBottom = Math.max(keyTop + keyHeight, valueTop + valueHeight);
+          const combinedWidth = combinedRight - combinedLeft;
+          const combinedHeight = combinedBottom - combinedTop;
+
+          return (
+            <React.Fragment key={form.id}>
+              {/* Combined clickable overlay for both KEY and VALUE */}
+              <div
+                style={{
+                  position: 'absolute',
+                  left: combinedLeft,
+                  top: combinedTop,
+                  width: combinedWidth,
+                  height: combinedHeight,
+                  cursor: 'pointer',
+                  zIndex: isCurrentForm ? 10000 : 9999,
+                  backgroundColor: 'transparent',
+                }}
+                onClick={handleFormClick}
+                onMouseEnter={() => setHoveredFormId(form.id)}
+                onMouseLeave={() => setHoveredFormId(null)}
+                title={`Click to navigate to this form`}
+              />
+              {/* KEY highlight */}
+              <div
+                style={{
+                  position: 'absolute',
+                  left: keyLeft,
+                  top: keyTop,
+                  width: keyWidth,
+                  height: keyHeight,
+                  backgroundColor: `rgba(255, 255, 255, ${keyBgOpacity})`,
+                  border: `${keyBorderWidth} solid ${keyBorderColor}`,
+                  pointerEvents: 'none',
+                  zIndex: isCurrentForm ? 9999 : 9998,
+                  transition: 'all 0.2s ease-in-out'
+                }}
+              />
+              {/* VALUE highlight */}
+              <div
+                ref={isCurrentForm ? currentFormHighlightRef : null}
+                style={{
+                  position: 'absolute',
+                  left: valueLeft,
+                  top: valueTop,
+                  width: valueWidth,
+                  height: valueHeight,
+                  backgroundColor: `rgba(75, 85, 99, ${valueBgOpacity})`,
+                  border: `${valueBorderWidth} solid ${valueBorderColor}`,
+                  pointerEvents: 'none',
+                  zIndex: isCurrentForm ? 9999 : 9998,
+                  transition: 'all 0.2s ease-in-out'
+                }}
+              />
+            </React.Fragment>
+          );
+        })}
+      </>
+    );
+  };
+
   return (
     <>
       {props.successEmail && (
         <Alert type={"success"}>{t("success-email-alert")}</Alert>
       )}
       <RSC
+        ref={scrollContainerRef}
         style={{
           position: "relative",
           boxShadow: "rgba(17, 12, 46, 0.15) 0px 48px 100px 0px",
@@ -328,6 +524,7 @@ function RenderPdf(props) {
                                         currWidgetsDetails={
                                           props?.currWidgetsDetails
                                         }
+                                        highlightedFieldKey={props.highlightedFieldKey}
                                       />
                                     </React.Fragment>
                                   ))}
@@ -425,6 +622,7 @@ function RenderPdf(props) {
               }}
             />
           </Document>
+          {props.isTextractMode && <FormHighlightOverlay />}
           {guideline.show && (
             <>
               {/* top guide */}

@@ -193,11 +193,7 @@ export const getSecureUrl = url => {
   }
 };
 
-/**
- * FlattenPdf is used to remove existing widgets if present any and flatten pdf.
- * @param {string | Uint8Array | ArrayBuffer} pdfFile - pdf file.
- * @returns {Promise<Uint8Array>} flatPdf - pdf file in unit8arry
- */
+//FlattenPdf is used to remove existing widgets if present any and flatten pdf.
 export const flattenPdf = async pdfFile => {
   try {
     const pdfDoc = await PDFDocument.load(pdfFile);
@@ -226,6 +222,34 @@ export const flattenPdf = async pdfFile => {
     return flatPdf;
   } catch (err) {
     throw new Error('error in pdf');
+  }
+};
+
+// Convert PDF to a new PDF by rewriting it (creates a fresh, clean PDF structure)
+export const convertPdfToNewPdf = async pdfFile => {
+  try {
+    // Load the original PDF
+    const originalPdf = await PDFDocument.load(pdfFile);
+
+    // Create a new PDF document
+    const newPdf = await PDFDocument.create();
+
+    // Copy all pages from the original PDF to the new PDF
+    const pageIndices = originalPdf.getPageIndices();
+    const copiedPages = await newPdf.copyPages(originalPdf, pageIndices);
+
+    // Add all copied pages to the new PDF
+    copiedPages.forEach(page => {
+      newPdf.addPage(page);
+    });
+
+    // Save the new PDF (this creates a fresh, clean PDF structure)
+    const newPdfBytes = await newPdf.save({ useObjectStreams: false });
+
+    return newPdfBytes;
+  } catch (err) {
+    console.error('Error converting PDF to new PDF:', err);
+    throw new Error('error converting pdf: ' + (err.message || err));
   }
 };
 

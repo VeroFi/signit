@@ -115,9 +115,12 @@ function PlaceholderType(props) {
           {props.pos.type && (
             <div
               style={{
-                fontSize: props.pos
-                  ? props.calculateFontsize(props.pos)
-                  : "11px"
+                fontSize: props.pos.isDetected 
+                  ? Math.max(parseFloat(props.calculateFontsize(props.pos)) || 14, 14) + "px" // Ensure minimum 14px for detected fields
+                  : props.pos
+                    ? props.calculateFontsize(props.pos)
+                    : "11px",
+                fontWeight: props.pos.isDetected ? "600" : "500" // Make detected fields bolder
               }}
               className="font-medium"
             >
@@ -384,7 +387,13 @@ function PlaceholderType(props) {
         />
       ) : (
         <div
-          style={textWidgetStyle}
+          style={{
+            ...textWidgetStyle,
+            fontSize: props.pos.isDetected 
+              ? Math.max(parseFloat(fontSize) || 14, 14) + "px" // Ensure minimum 14px for detected fields
+              : fontSize,
+            fontWeight: props.pos.isDetected ? "600" : "400" // Make detected fields bolder
+          }}
           className="select-none-cls overflow-hidden"
         >
           <span>
