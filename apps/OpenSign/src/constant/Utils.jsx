@@ -539,15 +539,15 @@ export const addWidgetSelfsignOptions = (type, getWidgetValue, owner) => {
 };
 export const getWidgetType = (item, widgetName) => {
   return (
-    <div className="widget-button op-btn w-fit md:w-[100%] op-btn-primary op-btn-outline op-btn-sm focus:outline-none outline outline-[1.5px] ml-[6px] md:ml-0 p-0 overflow-hidden">
-      <div className="w-full h-full flex md:justify-between items-center">
-        <div className="widget-button-text flex justify-start items-center text-[13px] ml-1">
-          {!isMobile && <i className="fa-light fa-grip-vertical ml-[3px]"></i>}
-          <span className="md:inline-block text-center text-[15px] ml-[5px] font-semibold pr-1 md:pr-0">
+    <div className="widget-button op-btn w-fit op-btn-primary op-btn-outline op-btn-sm focus:outline-none outline outline-[1.5px] p-0 overflow-hidden shrink-0">
+      <div className="w-full h-full flex items-center gap-1 px-1">
+        <div className="widget-button-text flex items-center gap-x-1 text-[13px]">
+          {!isMobile && <i className="fa-light fa-grip-vertical text-[10px] shrink-0"></i>}
+          <span className="text-[13px] font-semibold whitespace-nowrap">
             {widgetName}
           </span>
         </div>
-        <div className="text-[20px] op-btn op-btn-primary rounded-none w-[40px] h-full flex justify-center items-center">
+        <div className="text-[16px] op-btn op-btn-primary rounded-none w-8 h-8 min-w-[32px] flex justify-center items-center shrink-0">
           <i className={item.icon}></i>
         </div>
       </div>
@@ -2930,6 +2930,25 @@ export const getContainerScale = (pdfOriginalWH, pageNumber, containerWH) => {
   return containerScale;
 };
 
+/**
+ * Scale so the whole page fits in the container (width and height).
+ * Returns { scale, zoomPercent } for the scale state and zoom display.
+ * Uses first page dimensions; pass pageNumber to use a specific page.
+ */
+export const getFitToPageScale = (pdfOriginalWH, containerWH, pageNumber = 1) => {
+  if (!containerWH?.width || !containerWH?.height || !pdfOriginalWH?.length) {
+    return { scale: 1, zoomPercent: 0 };
+  }
+  const page = pdfOriginalWH.find((p) => p.pageNumber === pageNumber) || pdfOriginalWH[0];
+  const widthScale = containerWH.width / page.width;
+  const heightScale = containerWH.height / page.height;
+  const fitScale = Math.min(widthScale, heightScale);
+  const baseScale = containerWH.width / page.width;
+  const scale = baseScale ? fitScale / baseScale : 1;
+  const zoomPercent = Math.round((scale - 1) * 100);
+  return { scale, zoomPercent };
+};
+
 //function to get current laguage and set it in local
 export const saveLanguageInLocal = (i18n) => {
   const detectedLanguage = i18n.language || "en";
@@ -3038,8 +3057,8 @@ export const onClickZoomOut = (
   setZoomPercent,
   setScale
 ) => {
-  if (zoomPercent > 0) {
-    const newPercent = Math.max(0, zoomPercent - 10);
+  if (zoomPercent > -90) {
+    const newPercent = Math.max(-90, zoomPercent - 10);
     setZoomPercent(newPercent);
     setScale(1 + newPercent / 100);
   }

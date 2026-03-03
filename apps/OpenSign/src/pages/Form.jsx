@@ -31,6 +31,7 @@ import ModalUi from "../primitives/ModalUi";
 import { Tooltip } from "react-tooltip";
 import Loader from "../primitives/Loader";
 import { useTranslation } from "react-i18next";
+import PaperPalChat from "../components/paperpal/PaperPalChat";
 
 // `Form` render all type of Form on this basis of their provided in path
 function Form() {
@@ -38,7 +39,7 @@ function Form() {
 
   const config = formJson[id];
   if (config) {
-    return <Forms {...config} />;
+    return <Forms {...config} formId={id} />;
   } else {
     return <PageNotFound prefix={"Form"} />;
   }
@@ -1230,6 +1231,7 @@ const Forms = (props) => {
           </form>
         </>
       )}
+      <PaperPalChat workflowState="dashboard" pageContext={props.formId === "8mZzFxbG1z" ? "request-signatures" : props.formId === "sHAnZphf69" ? "sign-yourself" : props.formId === "template" ? "create-template" : null} />
     </div>
   );
 };

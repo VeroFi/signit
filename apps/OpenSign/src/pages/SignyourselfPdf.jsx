@@ -72,6 +72,7 @@ import {
 import WidgetsValueModal from "../components/pdf/WidgetsValueModal";
 import WidgetNameModal from "../components/pdf/WidgetNameModal";
 import CellsSettingModal from "../components/pdf/CellsSettingModal";
+import PaperPalChat from "../components/paperpal/PaperPalChat";
 //For signYourself inProgress section signer can add sign and complete doc sign.
 function SignYourSelf() {
   const { t } = useTranslation();
@@ -89,6 +90,7 @@ function SignYourSelf() {
   const divRef = useRef(null);
   const nodeRef = useRef(null);
   const pdfRef = useRef();
+  const pdfZoomRef = useRef(null);
   const numPages = 1;
   const [pdfDetails, setPdfDetails] = useState([]);
   const [allPages, setAllPages] = useState(null);
@@ -146,9 +148,20 @@ function SignYourSelf() {
     status: false,
     degree: 0
   });
+  const [isDetectingFields, setIsDetectingFields] = useState(false);
+  const [detectError, setDetectError] = useState(null);
+  const [detectedFieldsInfo, setDetectedFieldsInfo] = useState(null);
+  const [dismissedFormIds, setDismissedFormIds] = useState(new Set());
+  const [textractForms, setTextractForms] = useState([]);
+  const [currentFormIndex, setCurrentFormIndex] = useState(0);
+  const [isTextractMode, setIsTextractMode] = useState(false);
+  const [notificationPosition, setNotificationPosition] = useState({ x: 0, y: 0 });
+  const [isDraggingNotification, setIsDraggingNotification] = useState(false);
+  const notificationRef = useRef(null);
   const [isDownloadModal, setIsDownloadModal] = useState(false);
   const [isResize, setIsResize] = useState(false);
   const [isUploadPdf, setIsUploadPdf] = useState(false);
+  const [showPagesOverlay, setShowPagesOverlay] = useState(false);
 
   const [owner, setOwner] = useState({});
   const [, drop] = useDrop({
@@ -200,7 +213,11 @@ function SignYourSelf() {
 
     // Use setTimeout to wait for the transition to complete
     const timer = setTimeout(updateSize, 100); // match the transition duration
-    return () => clearTimeout(timer);
+    window.addEventListener("resize", updateSize);
+    return () => {
+      clearTimeout(timer);
+      window.removeEventListener("resize", updateSize);
+    };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [divRef.current, isHeader]);
 
@@ -358,6 +375,39 @@ function SignYourSelf() {
 
   //function for setting position after drop signature button over pdf
   const addPositionOfSignature = (item, monitor) => {
+    // Check if we're in Textract mode and user clicked a widget button (not dragged)
+    // When clicking: item === "onclick" and monitor is the widget object
+    // When dragging: item is the widget object and monitor has getClientOffset()
+    const isClick = item === "onclick";
+    
+    if (isTextractMode && isClick && detectedFieldsInfo && monitor) {
+      // Get the current form from the original sorted array
+      const activeForms = textractForms.filter(f => !dismissedFormIds.has(f.id));
+      if (activeForms.length > 0) {
+        // Find the current form - currentFormIndex is the index in the original sorted array
+        let currentForm = null;
+        if (currentFormIndex >= 0 && currentFormIndex < textractForms.length) {
+          const formAtIndex = textractForms[currentFormIndex];
+          if (formAtIndex && !dismissedFormIds.has(formAtIndex.id)) {
+            currentForm = formAtIndex;
+          }
+        }
+        
+        // If not found, use the first active form
+        if (!currentForm && activeForms.length > 0) {
+          currentForm = activeForms[0];
+        }
+        
+        if (currentForm) {
+          // monitor is the widget object when clicking
+          console.log('[addPositionOfSignature] Placing field from Textract form, widget:', monitor, 'form:', currentForm);
+          handlePlaceFieldFromTextractForm(monitor, currentForm);
+          return; // Exit early, field placement handled by handlePlaceFieldFromTextractForm
+        }
+      }
+      // If no current form found, fall through to normal placement
+    }
+    
     setCurrWidgetsDetails({});
     const key = randomId();
     let dropData = [];
@@ -517,6 +567,408 @@ function SignYourSelf() {
     return () => clearTimeout(timer);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [xyPosition, pdfBase64Url]);
+
+  // Auto-detect fields handler
+  const handleAutoDetectFields = async () => {
+    if (!docId) {
+      alert(t("something-went-wrong-mssg") || "Document ID is missing");
+      return;
+    }
+
+    if (!pdfBase64Url) {
+      alert(t("pdf-not-loaded") || "PDF not loaded");
+      return;
+    }
+
+    if (pdfDetails?.[0]?.IsCompleted) {
+      alert(t("document-already-completed") || "Document is already completed");
+      return;
+    }
+
+    setIsDetectingFields(true);
+    setDetectError(null);
+
+    try {
+      console.log('[SignYourSelf] Calling readBySignIt for document:', docId);
+      const result = await Parse.Cloud.run('readBySignIt', { documentId: docId });
+
+      if (result && result.success && result.forms && result.forms.length > 0) {
+        console.log('[SignYourSelf] Detected', result.forms.length, 'forms');
+        
+        // Sort forms by reading order (top-left to bottom-right, page by page)
+        const sortFormsByPosition = (forms) => {
+          return [...forms].sort((a, b) => {
+            // First sort by page number
+            if (a.pageNumber !== b.pageNumber) {
+              return a.pageNumber - b.pageNumber;
+            }
+            
+            // Then by Y position (top to bottom) - use KEY geometry if available, fallback to VALUE
+            const aGeometry = a.key?.geometry?.BoundingBox || a.value?.geometry?.BoundingBox;
+            const bGeometry = b.key?.geometry?.BoundingBox || b.value?.geometry?.BoundingBox;
+            
+            if (!aGeometry || !bGeometry) {
+              return 0; // Keep original order if no geometry
+            }
+            
+            // Compare Top position (smaller = higher on page)
+            const aTop = aGeometry.Top || 0;
+            const bTop = bGeometry.Top || 0;
+            
+            // Allow some tolerance for forms on the same "line" (within 0.02 of page height)
+            const yTolerance = 0.02;
+            if (Math.abs(aTop - bTop) > yTolerance) {
+              return aTop - bTop; // Top to bottom
+            }
+            
+            // If roughly on same line, sort left to right by Left position
+            const aLeft = aGeometry.Left || 0;
+            const bLeft = bGeometry.Left || 0;
+            return aLeft - bLeft; // Left to right
+          });
+        };
+        
+        const sortedForms = sortFormsByPosition(result.forms);
+        
+        // Store sorted forms and initialize Textract mode
+        setTextractForms(sortedForms);
+        setCurrentFormIndex(0);
+        setDismissedFormIds(new Set());
+        setIsTextractMode(true);
+        
+        const activeForms = sortedForms.filter(f => !dismissedFormIds.has(f.id));
+        if (activeForms.length > 0) {
+          setDetectedFieldsInfo({
+            count: activeForms.length,
+            currentIndex: 0
+          });
+          
+          // Switch to first form's page (which is now the top-left form)
+          if (activeForms[0].pageNumber !== pageNumber) {
+            setPageNumber(activeForms[0].pageNumber);
+          }
+        } else {
+          alert(t("no-fields-detected") || "No forms detected in this document. Try adding fields manually.");
+          setIsTextractMode(false);
+        }
+      } else {
+        alert(t("no-fields-detected") || "No forms detected in this document. Try adding fields manually.");
+        setIsTextractMode(false);
+      }
+    } catch (error) {
+      console.error('[SignYourSelf] Auto-detect error:', error);
+      const errorMessage = error.message || t("detection-failed") || "Failed to detect fields";
+      setDetectError(errorMessage);
+      alert(errorMessage);
+    } finally {
+      setIsDetectingFields(false);
+    }
+  };
+
+  // Navigate to a specific form in textract mode
+  const navigateToForm = (formIndex, form) => {
+    if (formIndex < 0 || formIndex >= textractForms.length) return;
+    
+    // Check if form is still active
+    if (form && dismissedFormIds.has(form.id)) return;
+    
+    setCurrentFormIndex(formIndex);
+    
+    // Find the form's index in the active forms array for display
+    const activeForms = textractForms.filter(f => !dismissedFormIds.has(f.id));
+    const activeIndex = activeForms.findIndex(f => f.id === form?.id);
+    
+    setDetectedFieldsInfo(prev => ({
+      ...prev,
+      currentIndex: activeIndex >= 0 ? activeIndex : 0
+    }));
+    
+    // Switch to the form's page if needed
+    if (form && form.pageNumber !== pageNumber) {
+      setPageNumber(form.pageNumber);
+    }
+  };
+
+  // Navigate between forms (prev/next)
+  const navigateTextractForm = (direction) => {
+    const activeForms = textractForms.filter(f => !dismissedFormIds.has(f.id));
+    if (activeForms.length === 0) return;
+    
+    // Find current form's index in the active forms array
+    let currentActiveIndex = 0;
+    if (currentFormIndex < textractForms.length) {
+      const currentFormId = textractForms[currentFormIndex]?.id;
+      if (currentFormId) {
+        const foundIndex = activeForms.findIndex(f => f.id === currentFormId);
+        if (foundIndex >= 0) {
+          currentActiveIndex = foundIndex;
+        }
+      }
+    }
+    
+    let newActiveIndex = currentActiveIndex;
+    
+    if (direction === 'next') {
+      newActiveIndex = (currentActiveIndex + 1) % activeForms.length;
+    } else if (direction === 'prev') {
+      newActiveIndex = (currentActiveIndex - 1 + activeForms.length) % activeForms.length;
+    }
+    
+    const newForm = activeForms[newActiveIndex];
+    const newIndexInOriginal = textractForms.findIndex(f => f.id === newForm.id);
+    const finalIndex = newIndexInOriginal >= 0 ? newIndexInOriginal : 0;
+    
+    setCurrentFormIndex(finalIndex);
+    setDetectedFieldsInfo(prev => ({
+      ...prev,
+      currentIndex: newActiveIndex
+    }));
+    
+    // Switch to the page if needed
+    if (newForm && newForm.pageNumber !== pageNumber) {
+      setPageNumber(newForm.pageNumber);
+    }
+  };
+
+  // Convert Textract coordinates to frontend coordinates
+  const convertTextractToFrontendCoords = (textractGeometry, pageNum) => {
+    // Get page dimensions
+    const pageData = pdfOriginalWH.find(p => p.pageNumber === pageNum);
+    if (!pageData) {
+      console.warn(`[convertTextractToFrontendCoords] Page ${pageNum} not found in pdfOriginalWH`);
+      // Fallback: use first page or default Letter size
+      const fallback = pdfOriginalWH[0] || { width: 612, height: 792 };
+      return {
+        x: textractGeometry.Left * fallback.width,
+        y: textractGeometry.Top * fallback.height,
+        width: textractGeometry.Width * fallback.width,
+        height: textractGeometry.Height * fallback.height
+      };
+    }
+    
+    // Textract: normalized 0-1, top-left origin
+    // Frontend: PDF point space, top-left origin
+    // Convert normalized to PDF point space
+    return {
+      x: textractGeometry.Left * pageData.width,
+      y: textractGeometry.Top * pageData.height,
+      width: textractGeometry.Width * pageData.width,
+      height: textractGeometry.Height * pageData.height
+    };
+  };
+
+  // Handle placing a field from Textract form when user clicks widget button
+  const handlePlaceFieldFromTextractForm = (item, currentForm) => {
+    console.log('[handlePlaceFieldFromTextractForm] Called with item:', item, 'currentForm:', currentForm);
+    
+    if (!currentForm) {
+      console.warn('[handlePlaceFieldFromTextractForm] Missing currentForm', { currentForm });
+      return;
+    }
+    
+    // Convert coordinates - ALWAYS use VALUE geometry for placement
+    const valueGeometry = currentForm.value?.geometry?.BoundingBox;
+    if (!valueGeometry) {
+      console.warn('[handlePlaceFieldFromTextractForm] No VALUE geometry available', currentForm);
+      return;
+    }
+    
+    const coords = convertTextractToFrontendCoords(valueGeometry, currentForm.pageNumber);
+    const containerScale = getContainerScale(pdfOriginalWH, currentForm.pageNumber, containerWH);
+    const currentScale = scale || 1;
+    
+    // Get widget type from the widget object (item is the widget object from WidgetList)
+    const widgetType = item?.type || item?.text;
+    console.log('[handlePlaceFieldFromTextractForm] Widget type:', widgetType, 'from item:', item);
+    
+    if (!widgetType) {
+      console.warn('[handlePlaceFieldFromTextractForm] No widget type found in item:', item);
+      return;
+    }
+    
+    // Get page dimensions for reference
+    const pageData = pdfOriginalWH.find(p => p.pageNumber === currentForm.pageNumber);
+    if (!pageData) {
+      console.warn('[handlePlaceFieldFromTextractForm] Page data not found');
+      return;
+    }
+    
+    // Store position in PDF point space (coords.x and coords.y are already in PDF point space)
+    // The xPos/yPos functions will multiply by containerScale * scale when rendering
+    const fieldKey = randomId();
+    const widgetValue = getWidgetValue(widgetType);
+    const dropObj = {
+      xPosition: coords.x,  // PDF point space
+      yPosition: coords.y,  // PDF point space
+      Width: coords.width,  // PDF point space
+      Height: coords.height, // PDF point space
+      type: widgetType,
+      key: fieldKey,
+      pageNumber: currentForm.pageNumber,
+      scale: containerScale,
+      zIndex: 10001, // Higher than highlights
+      options: addWidgetSelfsignOptions(widgetType, getWidgetValue, owner),
+      isStamp: false
+    };
+    
+    console.log('[handlePlaceFieldFromTextractForm] Placing field at:', {
+      xPosition: dropObj.xPosition,
+      yPosition: dropObj.yPosition,
+      Width: dropObj.Width,
+      Height: dropObj.Height,
+      pageNumber: dropObj.pageNumber,
+      containerScale,
+      currentScale,
+      coords
+    });
+    
+    // Add to xyPosition (SignYourSelf structure)
+    const filterDropPos = xyPosition?.filter(
+      (data) => data.pageNumber === currentForm.pageNumber
+    );
+    
+    if (filterDropPos?.length > 0) {
+      const index = xyPosition?.findIndex((object) => {
+        return object.pageNumber === currentForm.pageNumber;
+      });
+      const updateData = filterDropPos?.[0].pos;
+      const newSignPos = updateData.concat(dropObj);
+      let xyPos = { pageNumber: currentForm.pageNumber, pos: newSignPos };
+      xyPosition?.splice(index, 1, xyPos);
+      setXyPosition([...xyPosition]);
+    } else {
+      const xyPos = { pageNumber: currentForm.pageNumber, pos: [dropObj] };
+      setXyPosition((prev) => [...prev, xyPos]);
+    }
+    
+    setCurrWidgetsDetails(dropObj);
+    
+    // Open configuration menu for checkbox, dropdown, and radiobutton
+    if (widgetType === "checkbox") {
+      setIsCheckbox(true);
+    }
+  };
+
+  // Dismiss (unhighlight) the current form
+  const handleDismissForm = () => {
+    const activeForms = textractForms.filter(f => !dismissedFormIds.has(f.id));
+    if (activeForms.length === 0) return;
+    
+    // Find the current form's index in the active forms array
+    let currentActiveIndex = 0;
+    if (currentFormIndex < textractForms.length) {
+      const currentFormId = textractForms[currentFormIndex]?.id;
+      if (currentFormId) {
+        const foundIndex = activeForms.findIndex(f => f.id === currentFormId);
+        if (foundIndex >= 0) {
+          currentActiveIndex = foundIndex;
+        }
+      }
+    }
+    
+    const currentForm = activeForms[currentActiveIndex];
+    if (!currentForm) return;
+    
+    // Create the updated dismissed set (including current form)
+    const updatedDismissedIds = new Set([...dismissedFormIds, currentForm.id]);
+    
+    // Get remaining forms after dismissal
+    const remaining = textractForms.filter(f => !updatedDismissedIds.has(f.id));
+    
+    if (remaining.length === 0) {
+      // No more forms, exit Textract mode
+      setDismissedFormIds(updatedDismissedIds);
+      setDetectedFieldsInfo(null);
+      setIsTextractMode(false);
+      setCurrentFormIndex(0);
+    } else {
+      // Navigate to the next form in reading order
+      let newActiveIndex;
+      
+      if (currentActiveIndex < activeForms.length - 1) {
+        newActiveIndex = currentActiveIndex;
+      } else {
+        newActiveIndex = remaining.length - 1;
+      }
+      
+      if (newActiveIndex >= remaining.length) {
+        newActiveIndex = Math.max(0, remaining.length - 1);
+      }
+      if (newActiveIndex < 0) {
+        newActiveIndex = 0;
+      }
+      
+      const newForm = remaining[newActiveIndex];
+      if (newForm) {
+        const newIndexInOriginal = textractForms.findIndex(f => f.id === newForm.id);
+        const finalIndex = newIndexInOriginal >= 0 ? newIndexInOriginal : 0;
+        
+        setDismissedFormIds(updatedDismissedIds);
+        setCurrentFormIndex(finalIndex);
+        setDetectedFieldsInfo(prev => ({
+          ...prev,
+          count: remaining.length,
+          currentIndex: newActiveIndex
+        }));
+        
+        if (newForm.pageNumber !== pageNumber) {
+          setPageNumber(newForm.pageNumber);
+        }
+      } else {
+        setDismissedFormIds(updatedDismissedIds);
+      }
+    }
+  };
+
+  const closeDetectedFieldsNotification = () => {
+    // Close notification and disable Textract mode (removes all highlights)
+    setDetectedFieldsInfo(null);
+    setNotificationPosition({ x: 0, y: 0 }); // Reset position when closing
+    setIsTextractMode(false);
+    setCurrentFormIndex(0);
+    setDismissedFormIds(new Set()); // Reset dismissed forms
+  };
+
+  // Handle notification drag
+  const handleNotificationMouseDown = (e) => {
+    // Don't drag if clicking on buttons or interactive elements
+    if (e.target.closest('button') || e.target.closest('.op-btn') || e.target.closest('input') || e.target.closest('select')) {
+      return;
+    }
+    
+    setIsDraggingNotification(true);
+    const rect = notificationRef.current?.getBoundingClientRect();
+    if (!rect) return;
+    
+    // Calculate offset from mouse position to current notification position
+    const offsetX = e.clientX - rect.left;
+    const offsetY = e.clientY - rect.top;
+
+    const handleMouseMove = (e) => {
+      // Calculate new position relative to viewport
+      const newX = e.clientX - offsetX;
+      const newY = e.clientY - offsetY;
+      
+      // Keep notification within viewport bounds
+      const maxX = window.innerWidth - rect.width;
+      const maxY = window.innerHeight - rect.height;
+      
+      setNotificationPosition({ 
+        x: Math.max(0, Math.min(newX, maxX)), 
+        y: Math.max(0, Math.min(newY, maxY)) 
+      });
+    };
+
+    const handleMouseUp = () => {
+      setIsDraggingNotification(false);
+      document.removeEventListener('mousemove', handleMouseMove);
+      document.removeEventListener('mouseup', handleMouseUp);
+    };
+
+    document.addEventListener('mousemove', handleMouseMove);
+    document.addEventListener('mouseup', handleMouseUp);
+  };
+
   // `autosavedetails` is used to save doc details after every 2 sec when changes are happern in placeholder like drag-drop widgets, remove signers
   const autosavedetails = async () => {
     let pdfUrl;
@@ -1184,6 +1636,10 @@ function SignYourSelf() {
     setPdfBase64Url(urlDetails.base64);
     setShowRotateAlert({ status: false, degree: 0 });
   };
+  // Pages panel (left): set to false to show
+  const HIDE_PAGES = true;
+  // Recipients/Fields sidebar (right): set to true to hide
+  const HIDE_RECIPIENTS_FIELDS = false;
   return (
     <DndProvider backend={HTML5Backend}>
       <Title title={"Signyourself"} />
@@ -1192,7 +1648,7 @@ function SignYourSelf() {
       ) : handleError ? (
         <HandleError handleError={handleError} />
       ) : (
-        <div>
+        <div className={HIDE_RECIPIENTS_FIELDS ? "-m-3" : ""}>
           {isUiLoading && (
             <div className="absolute h-[100vh] w-full z-[999] flex flex-col justify-center items-center bg-[#e6f2f2] bg-opacity-80">
               <Loader />
@@ -1211,7 +1667,7 @@ function SignYourSelf() {
               />
             </div>
           )}
-          <div className="relative op-card overflow-hidden flex flex-col md:flex-row justify-between bg-base-300">
+          <div className="relative op-card overflow-hidden flex flex-col md:flex-row justify-between bg-base-300 w-full">
             {!isEmailVerified && (
               <VerifyEmail
                 isVerifyModal={isVerifyModal}
@@ -1235,25 +1691,10 @@ function SignYourSelf() {
               />
             )}
 
-            {/* this component used to render all pdf pages in left side */}
-
-            <RenderAllPdfPage
-              allPages={allPages}
-              setAllPages={setAllPages}
-              setPageNumber={setPageNumber}
-              setSignBtnPosition={setSignBtnPosition}
-              pageNumber={pageNumber}
-              containerWH={containerWH}
-              pdfBase64Url={pdfBase64Url}
-              signedUrl={pdfDetails?.[0]?.SignedUrl || ""}
-              setPdfArrayBuffer={setPdfArrayBuffer}
-              setPdfBase64Url={setPdfBase64Url}
-              setIsUploadPdf={setIsUploadPdf}
-              pdfArrayBuffer={pdfArrayBuffer}
-              isMergePdfBtn={!pdfDetails?.[0]?.IsCompleted}
-            />
-            <div className=" w-full md:w-[57%] flex mr-4">
+            {/* grows to fill space beside sidebar (no gray strip) */}
+            <div className="w-full flex mr-4 md:min-w-0 md:flex-1">
               <PdfZoom
+                ref={pdfZoomRef}
                 clickOnZoomIn={clickOnZoomIn}
                 clickOnZoomOut={clickOnZoomOut}
                 handleRotationFun={handleRotationFun}
@@ -1269,7 +1710,7 @@ function SignYourSelf() {
                 setPageNumber={setPageNumber}
                 isDisableEditTools={isCompleted}
               />
-              <div className="w-full md:w-[95%]">
+              <div className="w-full">
                 <ModalUi
                   isOpen={isAlert.isShow}
                   title={isAlert?.header || t("alert")}
@@ -1314,6 +1755,9 @@ function SignYourSelf() {
                   setFontColor={setFontColor}
                   isShowAdvanceFeature={false}
                 />
+                {detectError && (
+                  <div className="mb-2 px-2 text-red-500 text-sm">{detectError}</div>
+                )}
                 <PlaceholderCopy
                   isPageCopy={isPageCopy}
                   setIsPageCopy={setIsPageCopy}
@@ -1338,6 +1782,7 @@ function SignYourSelf() {
                   pageNumber={pageNumber}
                   allPages={allPages}
                   changePage={changePage}
+                  setPageNumber={setPageNumber}
                   embedWidgetsData={embedWidgetsData}
                   pdfDetails={pdfDetails}
                   isShowHeader={true}
@@ -1358,11 +1803,22 @@ function SignYourSelf() {
                   setSignerPos={setXyPosition}
                   signerPos={xyPosition}
                   pdfBase64={pdfBase64Url}
+                  showAutoDetectFields={!!(pdfBase64Url && !pdfDetails?.[0]?.IsCompleted)}
+                  onAutoDetectFields={handleAutoDetectFields}
+                  isDetectingFields={isDetectingFields}
+                  showToolsDropdown={true}
+                  onToolsAddPages={() => pdfZoomRef.current?.openAddPages()}
+                  onToolsDeletePage={() => pdfZoomRef.current?.openDeletePageModal()}
+                  onToolsReorder={() => pdfZoomRef.current?.openReorderModal()}
+                  onToolsPages={() => setShowPagesOverlay(true)}
+                  isDisableEditTools={isCompleted}
+                  zoomPercent={zoomPercent}
                 />
                 <div ref={divRef} data-tut="reactourSecond" className="h-full">
                   {containerWH?.width && containerWH?.height && (
                     <RenderPdf
                       pageNumber={pageNumber}
+                      allPages={allPages}
                       pdfOriginalWH={pdfOriginalWH}
                       pdfNewWidth={pdfNewWidth}
                       drop={drop}
@@ -1381,6 +1837,7 @@ function SignYourSelf() {
                       pageDetails={pageDetails}
                       pdfLoad={pdfLoad}
                       setPdfLoad={setPdfLoad}
+                      setAllPages={setAllPages}
                       setXyPosition={setXyPosition}
                       index={index}
                       containerWH={containerWH}
@@ -1392,6 +1849,12 @@ function SignYourSelf() {
                       handleTextSettingModal={handleTextSettingModal}
                       setScale={setScale}
                       scale={scale}
+                      textractForms={textractForms}
+                      currentFormIndex={currentFormIndex}
+                      dismissedFormIds={dismissedFormIds}
+                      isTextractMode={isTextractMode}
+                      onFormClick={navigateToForm}
+                      highlightedFieldKey={null}
                       pdfBase64Url={pdfBase64Url}
                       fontSize={fontSize}
                       setFontSize={setFontSize}
@@ -1402,12 +1865,13 @@ function SignYourSelf() {
                       setIsResize={setIsResize}
                       divRef={divRef}
                       currWidgetsDetails={currWidgetsDetails}
+                      setPageNumber={setPageNumber}
                     />
                   )}
                 </div>
               </div>
             </div>
-            <div className="signyourself-pdf-container w-full md:w-[23%] bg-base-100 overflow-y-auto md:overflow-x-auto hide-scrollbar">
+            <div className="signyourself-pdf-container w-full md:w-[23%] md:flex-shrink-0 bg-base-100 overflow-y-auto md:overflow-x-auto hide-scrollbar">
               <div className={`max-h-screen`}>
                 {!isCompleted ? (
                   <div>
@@ -1428,6 +1892,152 @@ function SignYourSelf() {
                 )}
               </div>
             </div>
+
+            {/* Pages overlay: open from Tools → Pages */}
+            {showPagesOverlay && (
+              <div className="fixed inset-0 z-[100] flex" role="dialog" aria-modal="true" aria-label={t("pages")}>
+                <div className="w-[280px] max-w-[85vw] mt-16 bg-base-100 shadow-2xl flex flex-col overflow-hidden">
+                  <div className="flex justify-between items-center px-3 py-2 border-b border-base-300 shrink-0">
+                    <span className="font-semibold text-base-content">{t("pages")}</span>
+                    <button type="button" onClick={() => setShowPagesOverlay(false)} className="op-btn op-btn-ghost op-btn-sm op-btn-square" aria-label={t("close")}>
+                      <i className="fa-light fa-times" />
+                    </button>
+                  </div>
+                  <div className="flex-1 min-h-0 overflow-hidden">
+                    <RenderAllPdfPage
+                      asOverlay
+                      allPages={allPages}
+                      setAllPages={setAllPages}
+                      setPageNumber={setPageNumber}
+                      onPageSelect={() => setTimeout(() => setShowPagesOverlay(false), 120)}
+                      setSignBtnPosition={setSignBtnPosition}
+                      pageNumber={pageNumber}
+                      containerWH={containerWH}
+                      pdfBase64Url={pdfBase64Url}
+                      signedUrl={pdfDetails?.[0]?.SignedUrl || ""}
+                      setPdfArrayBuffer={setPdfArrayBuffer}
+                      setPdfBase64Url={setPdfBase64Url}
+                      setIsUploadPdf={setIsUploadPdf}
+                      pdfArrayBuffer={pdfArrayBuffer}
+                      isMergePdfBtn={!pdfDetails?.[0]?.IsCompleted}
+                    />
+                  </div>
+                </div>
+                <div className="flex-1 bg-black/40" onClick={() => setShowPagesOverlay(false)} aria-hidden="true" />
+              </div>
+            )}
+
+            {/* Detected Fields Notification */}
+            {detectedFieldsInfo && (
+              <div 
+                ref={notificationRef}
+                className="fixed z-[9999] bg-base-100 shadow-2xl rounded-lg border-2 border-primary p-4 min-w-[300px] max-w-[500px] select-none"
+                style={{
+                  bottom: notificationPosition.x === 0 && notificationPosition.y === 0 ? '16px' : 'auto',
+                  left: notificationPosition.x === 0 && notificationPosition.y === 0 ? '50%' : notificationPosition.x + 'px',
+                  top: notificationPosition.x !== 0 || notificationPosition.y !== 0 ? notificationPosition.y + 'px' : 'auto',
+                  transform: notificationPosition.x === 0 && notificationPosition.y === 0 ? 'translateX(-50%)' : 'none',
+                  cursor: isDraggingNotification ? 'grabbing' : 'grab',
+                  userSelect: 'none'
+                }}
+                onMouseDown={handleNotificationMouseDown}
+              >
+                <div className="flex items-center justify-between mb-3">
+                  <div className="flex items-center gap-2">
+                    <i className="fa-light fa-check-circle text-success text-xl"></i>
+                    <h3 className="font-semibold text-base">
+                      {t("fields-detected") || "Fields Detected"}
+                    </h3>
+                  </div>
+                  <button
+                    onClick={closeDetectedFieldsNotification}
+                    className="op-btn op-btn-ghost op-btn-sm op-btn-circle"
+                    title={t("close") || "Close"}
+                    onMouseDown={(e) => e.stopPropagation()}
+                  >
+                    <i className="fa-light fa-times"></i>
+                  </button>
+                </div>
+                
+                <div className="mb-3 text-sm">
+                  {(() => {
+                    const activeFormsCount = textractForms.filter(f => !dismissedFormIds.has(f.id)).length;
+                    return (
+                      <p className="text-base-content/80">
+                        {t("detected-fields-count", { 
+                          count: activeFormsCount,
+                          current: detectedFieldsInfo.currentIndex + 1,
+                          total: activeFormsCount
+                        }) || 
+                        `Found ${activeFormsCount} form(s). Showing ${detectedFieldsInfo.currentIndex + 1} of ${activeFormsCount}`}
+                      </p>
+                    );
+                  })()}
+                  {(() => {
+                    const activeForms = textractForms.filter(f => !dismissedFormIds.has(f.id));
+                    const currentForm = activeForms[detectedFieldsInfo.currentIndex];
+                    if (currentForm) {
+                      return (
+                        <div className="flex items-center justify-between mt-1">
+                          <p className="text-xs text-base-content/60">
+                            {t("page") || "Page"}: {currentForm.pageNumber}
+                          </p>
+                          <button
+                            onClick={handleDismissForm}
+                            className="op-btn op-btn-ghost op-btn-xs op-btn-circle ml-2 text-error hover:bg-error hover:text-error-content"
+                            title={t("dismiss-form") || "Dismiss this form"}
+                            onMouseDown={(e) => e.stopPropagation()}
+                          >
+                            <i className="fa-light fa-times"></i>
+                          </button>
+                        </div>
+                      );
+                    }
+                    return null;
+                  })()}
+                </div>
+
+                {(() => {
+                  const activeForms = textractForms.filter(f => !dismissedFormIds.has(f.id));
+                  if (activeForms.length > 1) {
+                    return (
+                      <div className="flex items-center justify-center gap-4">
+                        <button
+                          onClick={() => navigateTextractForm('prev')}
+                          className="op-btn op-btn-primary op-btn-sm"
+                          title={t("previous-form") || "Previous form"}
+                          onMouseDown={(e) => e.stopPropagation()}
+                        >
+                          <i className="fa-light fa-arrow-left"></i>
+                          <span className="ml-1">{t("previous") || "Previous"}</span>
+                        </button>
+                        <span className="text-sm text-base-content/60">
+                          {detectedFieldsInfo.currentIndex + 1} / {activeForms.length}
+                        </span>
+                        <button
+                          onClick={() => navigateTextractForm('next')}
+                          className="op-btn op-btn-primary op-btn-sm"
+                          title={t("next-form") || "Next form"}
+                          onMouseDown={(e) => e.stopPropagation()}
+                        >
+                          <span className="mr-1">{t("next") || "Next"}</span>
+                          <i className="fa-light fa-arrow-right"></i>
+                        </button>
+                      </div>
+                    );
+                  } else if (activeForms.length === 1) {
+                    return (
+                      <div className="flex items-center justify-center">
+                        <span className="text-sm text-base-content/60">
+                          {detectedFieldsInfo.currentIndex + 1} / {activeForms.length}
+                        </span>
+                      </div>
+                    );
+                  }
+                  return null;
+                })()}
+              </div>
+            )}
           </div>
         </div>
       )}
@@ -1485,6 +2095,7 @@ function SignYourSelf() {
         handleSaveFontSize={handleSaveFontSize}
         currWidgetsDetails={currWidgetsDetails}
       />
+      <PaperPalChat workflowState="editing" documentId={docId} pageContext={null} />
     </DndProvider>
   );
 }

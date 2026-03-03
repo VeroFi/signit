@@ -30,6 +30,8 @@ function RenderPdf(props) {
   const pdfContainerRef = useRef(null);
   const scrollContainerRef = useRef(null);
   const currentFormHighlightRef = useRef(null);
+  const scrollSpyUpdateRef = useRef(false);
+  const programmaticScrollInProgressRef = useRef(false);
 
   // enable pinch to zoom only on actual pdf wrapper
   usePdfPinchZoom(
@@ -39,25 +41,90 @@ function RenderPdf(props) {
     props.setZoomPercent
   );
 
-  // Scroll to current form when it changes
+  // Scroll to current form only when user changes form (Next/Previous) or enables auto-detect.
+  // Do not depend on pageNumber: when user scrolls manually, scroll spy updates pageNumber
+  // and we must not scroll back to the highlighted field.
   useEffect(() => {
     if (!props.isTextractMode || !currentFormHighlightRef.current) return;
-    
-    // Small delay to ensure DOM is updated and page is rendered
+    programmaticScrollInProgressRef.current = true;
+    let clearGuardId;
     const timeoutId = setTimeout(() => {
       const highlightElement = currentFormHighlightRef.current;
-      if (!highlightElement) return;
-      
-      // Use scrollIntoView which handles both vertical and horizontal scrolling
+      if (!highlightElement) {
+        programmaticScrollInProgressRef.current = false;
+        return;
+      }
       highlightElement.scrollIntoView({
         behavior: 'smooth',
         block: 'center',
         inline: 'center'
       });
+      clearGuardId = setTimeout(() => {
+        programmaticScrollInProgressRef.current = false;
+      }, 1500);
     }, 300);
-    
-    return () => clearTimeout(timeoutId);
-  }, [props.currentFormIndex, props.pageNumber, props.isTextractMode]);
+    return () => {
+      clearTimeout(timeoutId);
+      if (clearGuardId != null) clearTimeout(clearGuardId);
+    };
+  }, [props.currentFormIndex, props.isTextractMode]);
+
+  // Jump to top of page only when user pressed button or typed a number — not when page changed from scrolling.
+  useEffect(() => {
+    if (!props.allPages || !props.pageNumber) return;
+    const wasFromScrollSpy = scrollSpyUpdateRef.current;
+    scrollSpyUpdateRef.current = false;
+    if (wasFromScrollSpy) return;
+
+    const pageNum = props.pageNumber;
+    programmaticScrollInProgressRef.current = true;
+
+    const jumpToPage = () => {
+      const scroller = scrollContainerRef.current?.scrollerElement;
+      const container = pdfContainerRef.current;
+      if (!scroller || !container) return false;
+      const el = container.querySelector(`[data-page-number="${pageNum}"]`);
+      if (!el) return false;
+      const targetTop = el.getBoundingClientRect().top - scroller.getBoundingClientRect().top + scroller.scrollTop;
+      scroller.scrollTop = Math.max(0, Math.floor(targetTop));
+      return true;
+    };
+
+    jumpToPage();
+    const rafId = requestAnimationFrame(() => {
+      jumpToPage();
+      setTimeout(() => {
+        programmaticScrollInProgressRef.current = false;
+      }, 150);
+    });
+
+    return () => cancelAnimationFrame(rafId);
+  }, [props.pageNumber, props.allPages]);
+
+  // Update page number when user scrolls (scroll spy)
+  const handleScroll = useCallback(
+    (scrollValues) => {
+      if (!props.allPages || !props.setPageNumber) return;
+      if (programmaticScrollInProgressRef.current) return;
+      const container = pdfContainerRef.current;
+      const scroller = scrollContainerRef.current?.scrollerElement;
+      if (!container || !scroller) return;
+      const pages = container.querySelectorAll("[data-page-number]");
+      if (!pages.length) return;
+      const viewTop = scroller.getBoundingClientRect().top + 80;
+      let current = 1;
+      for (const el of pages) {
+        const r = el.getBoundingClientRect();
+        if (r.top <= viewTop)
+          current = parseInt(el.getAttribute("data-page-number"), 10) || current;
+      }
+      if (current !== props.pageNumber) {
+        scrollSpyUpdateRef.current = true;
+        props.setPageNumber(current);
+      }
+    },
+    [props.allPages, props.setPageNumber, props.pageNumber]
+  );
 
   const handleGuideline = (isShow, x = 0, y = 0, width = 0, height = 0) => {
     if (isShow) {
@@ -71,6 +138,20 @@ function RenderPdf(props) {
     } else {
       setGuideline({ show: false, x1: 0, x2: 0, y1: 0, y2: 0 });
     }
+  };
+
+  const MARGIN_BETWEEN_PAGES = 8;
+  const getPageOffsetY = (pageNum) => {
+    if (!props.pdfOriginalWH?.length || !props.containerWH) return 0;
+    let offset = 0;
+    const currentScale = props.scale || 1;
+    for (let i = 1; i < pageNum; i++) {
+      const pData = props.pdfOriginalWH.find((p) => p.pageNumber === i);
+      if (!pData) continue;
+      const scale = getContainerScale(props.pdfOriginalWH, i, props.containerWH);
+      offset += pData.height * scale * currentScale + MARGIN_BETWEEN_PAGES;
+    }
+    return offset;
   };
 
   // handle signature block width and height according to screen
@@ -280,40 +361,38 @@ function RenderPdf(props) {
       }
     }
     
-    // Filter forms for current page - show ALL forms on this page
-    const activeFormsOnPage = props.textractForms.filter(f => 
-      !props.dismissedFormIds.has(f.id) && 
-      f.pageNumber === props.pageNumber
-    );
-    
-    if (activeFormsOnPage.length === 0) return null;
-    
-    const containerScale = getContainerScale(
-      props.pdfOriginalWH,
-      props.pageNumber,
-      props.containerWH
-    );
+    const activeForms = props.textractForms.filter(f => !props.dismissedFormIds.has(f.id));
+    if (activeForms.length === 0) return null;
+
     const currentScale = props.scale || 1;
-    const pageData = props.pdfOriginalWH.find(p => p.pageNumber === props.pageNumber);
-    if (!pageData) return null;
-    
-    // Render all forms on this page, with current form more prominent
+
     return (
       <>
-        {activeFormsOnPage.map((form, index) => {
+        {activeForms.map((form) => {
           const isCurrentForm = currentForm && form.id === currentForm.id;
           const keyBox = form.key?.geometry?.BoundingBox;
           const valueBox = form.value?.geometry?.BoundingBox || keyBox;
-          
+
           if (!keyBox || !valueBox) return null;
-          
+
+          const pageNum = form.pageNumber;
+          const pageData = props.pdfOriginalWH.find(p => p.pageNumber === pageNum);
+          if (!pageData) return null;
+
+          const containerScale = getContainerScale(
+            props.pdfOriginalWH,
+            pageNum,
+            props.containerWH
+          );
+          const pageOffsetY = getPageOffsetY(pageNum);
+
           const keyLeft = keyBox.Left * pageData.width * containerScale * currentScale;
-          const keyTop = keyBox.Top * pageData.height * containerScale * currentScale;
+          const keyTop = pageOffsetY + keyBox.Top * pageData.height * containerScale * currentScale;
           const keyWidth = keyBox.Width * pageData.width * containerScale * currentScale;
           const keyHeight = keyBox.Height * pageData.height * containerScale * currentScale;
-          
+
           const valueLeft = valueBox.Left * pageData.width * containerScale * currentScale;
-          const valueTop = valueBox.Top * pageData.height * containerScale * currentScale;
+          const valueTop = pageOffsetY + valueBox.Top * pageData.height * containerScale * currentScale;
           const valueWidth = valueBox.Width * pageData.width * containerScale * currentScale;
           const valueHeight = valueBox.Height * pageData.height * containerScale * currentScale;
           
@@ -414,6 +493,7 @@ function RenderPdf(props) {
       )}
       <RSC
         ref={scrollContainerRef}
+        onScroll={handleScroll}
         style={{
           position: "relative",
           boxShadow: "rgba(17, 12, 46, 0.15) 0px 48px 100px 0px",
@@ -427,6 +507,13 @@ function RenderPdf(props) {
         noScrollY={isMobile ? props.scale === 1 : false}
         noScrollX={props.scale === 1}
       >
+        <div
+          style={
+            isMobile
+              ? undefined
+              : { display: "flex", justifyContent: "center", width: "100%", minHeight: "100%" }
+          }
+        >
         <div
           data-tut={isMobile ? "reactourForth" : undefined}
           className={
@@ -448,7 +535,7 @@ function RenderPdf(props) {
             props.containerWH?.width &&
             props.pdfOriginalWH.length > 0 && (
               <>
-                {props.pdfRequest || props.isSelfSign
+                {!props.allPages && (props.pdfRequest || props.isSelfSign
                   ? // request sign, guest sign,
                     props.signerPos?.map((data, key) => (
                       <React.Fragment key={key}>
@@ -589,7 +676,69 @@ function RenderPdf(props) {
                                 )
                             )}
                         </React.Fragment>
+                      ))
+                )}
+                {props.allPages && props.placeholder &&
+                  props.signerPos?.map((data, ind) => (
+                    <React.Fragment key={ind}>
+                      {data?.placeHolder?.map((placeData, index) => (
+                        <React.Fragment key={index}>
+                          {placeData.pos.map((pos) => (
+                            <Placeholder
+                              key={pos.key}
+                              pos={pos}
+                              setIsPageCopy={props.setIsPageCopy}
+                              handleDeleteSign={props.handleDeleteSign}
+                              handleTabDrag={props.handleTabDrag}
+                              handleStop={props.handleStop}
+                              handleSignYourselfImageResize={handleImageResize}
+                              index={placeData.pageNumber}
+                              xyPosition={props.signerPos}
+                              setXyPosition={props.setSignerPos}
+                              data={data}
+                              setIsResize={props.setIsResize}
+                              setShowDropdown={props.setShowDropdown}
+                              isShowBorder={true}
+                              isPlaceholder={true}
+                              setUniqueId={props.setUniqueId}
+                              handleLinkUser={props.handleLinkUser}
+                              isSignYourself={false}
+                              posWidth={posWidth}
+                              posHeight={posHeight}
+                              showGuidelines={handleGuideline}
+                              isDragging={props.isDragging}
+                              setIsValidate={props.setIsValidate}
+                              setIsRadio={props.setIsRadio}
+                              setIsCheckbox={props.setIsCheckbox}
+                              setCurrWidgetsDetails={props.setCurrWidgetsDetails}
+                              handleNameModal={props.handleNameModal}
+                              setTempSignerId={props.setTempSignerId}
+                              uniqueId={props.uniqueId}
+                              handleTextSettingModal={props.handleTextSettingModal}
+                              handleCellSettingModal={props.handleCellSettingModal}
+                              scale={props.scale}
+                              containerWH={props.containerWH}
+                              pdfOriginalWH={props.pdfOriginalWH}
+                              pageNumber={placeData.pageNumber}
+                              pageOffsetY={getPageOffsetY(placeData.pageNumber)}
+                              setIsSelectId={props.setIsSelectId}
+                              fontSize={props.fontSize}
+                              setFontSize={props.setFontSize}
+                              setCellCount={props.setCellCount}
+                              fontColor={props.fontColor}
+                              setFontColor={props.setFontColor}
+                              isResize={props.isResize}
+                              unSignedWidgetId={props.unSignedWidgetId}
+                              isFreeResize={true}
+                              calculateFontsize={calculateFontsize}
+                              currWidgetsDetails={props?.currWidgetsDetails}
+                              highlightedFieldKey={props.highlightedFieldKey}
+                            />
+                          ))}
+                        </React.Fragment>
                       ))}
+                    </React.Fragment>
+                  ))}
               </>
             )}
           <Document
@@ -601,6 +750,7 @@ function RenderPdf(props) {
             loading={t("loading-doc")}
             onLoadSuccess={(pdf) => {
               props.setPdfLoad(true);
+              if (pdf?.numPages != null) props.setAllPages?.(pdf.numPages);
               props.pageDetails(pdf);
             }}
             onClick={() =>
@@ -608,19 +758,51 @@ function RenderPdf(props) {
             }
             file={pdfDataBase64}
           >
-            <Page
-              key={props.index}
-              onLoadSuccess={handlePageLoadSuccess}
-              width={props.containerWH.width}
-              scale={props.scale || 1}
-              className={isMobile ? "select-none touch-callout-none" : "-z-[1]"}
-              pageNumber={props.pageNumber}
-              renderAnnotationLayer={false}
-              renderTextLayer={false}
-              onGetAnnotationsError={(error) => {
-                console.log("annotation error", error);
-              }}
-            />
+            {props.allPages
+              ? Array.from(new Array(props.allPages), (_, i) => {
+                  const pageNum = i + 1;
+                  return (
+                    <div
+                      key={pageNum}
+                      data-page-number={pageNum}
+                      className="flex flex-col items-center"
+                      style={{
+                        width:
+                          props.containerWH?.width &&
+                          props.containerWH.width * (props.scale || 1),
+                        marginBottom: 8
+                      }}
+                    >
+                      <Page
+                        onLoadSuccess={pageNum === 1 ? handlePageLoadSuccess : undefined}
+                        width={props.containerWH.width}
+                        scale={props.scale || 1}
+                        className={isMobile ? "select-none touch-callout-none" : "-z-[1]"}
+                        pageNumber={pageNum}
+                        renderAnnotationLayer={false}
+                        renderTextLayer={false}
+                        onGetAnnotationsError={(error) => {
+                          console.log("annotation error", error);
+                        }}
+                      />
+                    </div>
+                  );
+                })
+              : (
+                <Page
+                  key={props.index}
+                  onLoadSuccess={handlePageLoadSuccess}
+                  width={props.containerWH.width}
+                  scale={props.scale || 1}
+                  className={isMobile ? "select-none touch-callout-none" : "-z-[1]"}
+                  pageNumber={props.pageNumber}
+                  renderAnnotationLayer={false}
+                  renderTextLayer={false}
+                  onGetAnnotationsError={(error) => {
+                    console.log("annotation error", error);
+                  }}
+                />
+              )}
           </Document>
           {props.isTextractMode && <FormHighlightOverlay />}
           {guideline.show && (
@@ -647,6 +829,7 @@ function RenderPdf(props) {
               />
             </>
           )}
+        </div>
         </div>
       </RSC>
     </>

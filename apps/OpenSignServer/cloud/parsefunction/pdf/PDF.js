@@ -93,6 +93,7 @@ async function updateDoc(docId, url, userId, ipAddress, data, className, sign) {
         'X-Parse-Master-Key': masterKEY,
       },
     });
+
     return { isCompleted: isCompleted, message: 'success', AuditTrail: updateAuditTrail };
   } catch (err) {
     console.log('update doc err ', err);

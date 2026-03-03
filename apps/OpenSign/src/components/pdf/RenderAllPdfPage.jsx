@@ -153,14 +153,20 @@ function RenderAllPdfPage(props) {
       console.error("Error merging PDF:", error);
     }
   };
+  const rootClassName = props?.asOverlay
+    ? "w-full h-full flex flex-col bg-base-100 overflow-hidden"
+    : "hidden w-[20%] bg-base-100 md:block";
+
   return (
-    <div ref={pageContainer} className="hidden w-[20%] bg-base-100 md:block">
-      <div className="mx-2 pr-2 pt-2 pb-1 text-[15px] text-base-content font-semibold border-b-[1px] border-base-300">
-        {t("pages")}
-      </div>
+    <div ref={pageContainer} className={rootClassName}>
+      {!props?.asOverlay && (
+        <div className="mx-2 pr-2 pt-2 pb-1 text-[15px] text-base-content font-semibold border-b-[1px] border-base-300 shrink-0">
+          {t("pages")}
+        </div>
+      )}
       <div
-        className={`flex h-[90%] flex-col items-center m-2  
-         autoSignScroll hide-scrollbar max-h-[100vh] `}
+        className={`flex flex-col items-center m-2 flex-1 min-h-0 overflow-auto
+         autoSignScroll hide-scrollbar ${props?.asOverlay ? "" : "h-[90%] max-h-[100vh]"}`}
       >
         <Document
           error=""
@@ -181,6 +187,7 @@ function RenderAllPdfPage(props) {
                 if (props?.setSignBtnPosition) {
                   props?.setSignBtnPosition([]);
                 }
+                props?.onPageSelect?.();
               }}
             >
               {props?.signerPos && addSignatureBookmark(index)}

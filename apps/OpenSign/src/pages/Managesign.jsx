@@ -14,6 +14,7 @@ import Loader from "../primitives/Loader";
 import { useTranslation } from "react-i18next";
 import sanitizeFileName from "../primitives/sanitizeFileName";
 import Title from "../components/Title";
+import PaperPalChat from "../components/paperpal/PaperPalChat";
 const ManageSign = () => {
   const { t } = useTranslation();
   const [penColor, setPenColor] = useState("blue");
@@ -474,6 +475,7 @@ const ManageSign = () => {
           </div>
         </div>
       </div>
+      <PaperPalChat workflowState="dashboard" pageContext="managesign" />
     </div>
   );
 };

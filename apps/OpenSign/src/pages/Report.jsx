@@ -9,6 +9,7 @@ import PageNotFound from "./PageNotFound";
 import TourContentWithBtn from "../primitives/TourContentWithBtn";
 import Loader from "../primitives/Loader";
 import { useTranslation } from "react-i18next";
+import PaperPalChat from "../components/paperpal/PaperPalChat";
 
 const Report = () => {
   const { t } = useTranslation();
@@ -270,6 +271,7 @@ const Report = () => {
           )}
         </>
       )}
+      <PaperPalChat workflowState="dashboard" pageContext={id === "contacts" ? "contactbook" : id === "4Hhwbp482K" ? "need-your-sign" : id === "1MwEuxLEkF" ? "in-progress" : id === "kQUoW4hUXz" ? "completed" : id === "ByHuevtCFY" ? "drafts" : id === "UPr2Fm5WY3" ? "declined" : id === "zNqBHXHsYH" ? "expired" : id === "6TeaPr321t" ? "templates" : null} />
     </>
   );
 };

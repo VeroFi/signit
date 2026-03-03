@@ -5,7 +5,10 @@ import { useDrag } from "react-dnd";
 import WidgetList from "./WidgetList";
 import {
   color,
+  darkenColor,
+  getFirstLetter,
   isMobile,
+  nameColor,
   radioButtonWidget,
   textInputWidget,
   cellsWidget,
@@ -169,57 +172,74 @@ function WidgetComponent(props) {
 
   return (
     <>
-      {isMobile ? (
-        !props.isMailSend && (
-          <div id="navbar" className="navbar-container fixed z-[99] bottom-0 right-0 w-full">
-            {props.isSigners && (
-              <div className="w-full mb-[5px] flex justify-center items-center gap-1">
-                <div className="w-full ml-[5px]" onClick={() => handleModal()}>
-                  <select
-                    data-tut="recipientArea"
-                    className="w-full op-select op-select-bordered  pointer-events-none"
-                    value={handleSelectRecipient()}
-                    style={{
-                      backgroundColor: props.blockColor
-                        ? props.blockColor
-                        : color[0]
-                    }}
-                  >
-                    <option value={handleSelectRecipient()}>
-                      {handleSelectRecipient()}
-                    </option>
-                  </select>
-                </div>
-
-                <div className="w-[18%]">
-                  {props.handleAddSigner ? (
-                    <button
-                      data-tut="reactourAddbtn"
-                      onClick={() => props.handleAddSigner()}
-                      className="op-btn op-btn-accent"
-                    >
-                      <i className="fa-light fa-plus "></i>
-                    </button>
-                  ) : (
-                    props.setIsAddSigner && (
-                      <button
-                        data-tut="addRecipient"
-                        onClick={() => props.setIsAddSigner(true)}
-                        className="op-btn op-btn-accent"
-                      >
-                        <i className="fa-light fa-plus"></i>
-                      </button>
-                    )
-                  )}
-                </div>
-              </div>
-            )}
-
+      {/* Recipients + Fields bottom bar: same on all screen sizes, at bottom; horizontal scroll on one line */}
+      {!props.isMailSend && (
+          <div id="navbar" className="navbar-container fixed z-[99] bottom-0 right-0 w-full max-w-[100vw]">
             <div
               data-tut="addWidgets"
               className="widget-navbar bg-base-100 border-[2px] border-t-primary"
             >
-              <div className="widget-list-responsive flex whitespace-nowrap overflow-x-scroll pt-[10px] pb-[5px] pr-[5px] md:flex-col md:whitespace-normal md:overflow-x-visible md:overflow-y-auto md:p-[15px] md:pt-4 md:h-full md:max-h-[calc(100vh-200px)]">
+              <div className="widget-list-responsive flex flex-nowrap overflow-x-auto gap-x-2 gap-y-2 py-2 px-2 items-center">
+                {props.isSigners && (
+                  <>
+                    <button
+                      type="button"
+                      data-tut="recipientArea"
+                      onClick={() => handleModal()}
+                      className="op-btn op-btn-outline op-btn-sm shrink-0 w-8 h-8 min-w-[32px] p-0 flex justify-center items-center rounded-full outline outline-[1.5px] border-2 border-base-300 overflow-hidden"
+                      title={handleSelectRecipient()}
+                    >
+                      {props.signersdata?.length > 0 &&
+                      props.signersdata[props.isSelectListId] ? (
+                        <span
+                          className="w-full h-full flex items-center justify-center text-white uppercase font-bold text-[11px]"
+                          style={{
+                            background:
+                              props.signersdata[props.isSelectListId]?.blockColor
+                                ? darkenColor(
+                                    props.signersdata[props.isSelectListId].blockColor,
+                                    0.4
+                                  )
+                                : nameColor[
+                                    props.isSelectListId % nameColor.length
+                                  ]
+                          }}
+                        >
+                          {props.signersdata[props.isSelectListId]?.Name
+                            ? getFirstLetter(
+                                props.signersdata[props.isSelectListId].Name
+                              )
+                            : getFirstLetter(
+                                props.signersdata[props.isSelectListId]?.Role ||
+                                  "?"
+                              )}
+                        </span>
+                      ) : (
+                        <i
+                          className="fa-light fa-user text-base text-base-content"
+                          aria-hidden="true"
+                       ></i>
+                      )}
+                    </button>
+                    {props.handleAddSigner ? (
+                      <button
+                        data-tut="reactourAddbtn"
+                        onClick={() => props.handleAddSigner()}
+                        className="op-btn op-btn-accent op-btn-sm shrink-0 w-8 h-8 min-w-[32px] p-0 flex justify-center items-center rounded-full"
+                      >
+                        <i className="fa-light fa-plus" aria-hidden="true"></i>
+                      </button>
+                    ) : props.setIsAddSigner ? (
+                      <button
+                        data-tut="addRecipient"
+                        onClick={() => props.setIsAddSigner(true)}
+                        className="op-btn op-btn-accent op-btn-sm shrink-0 w-8 h-8 min-w-[32px] p-0 flex justify-center items-center rounded-full"
+                      >
+                        <i className="fa-light fa-plus" aria-hidden="true"></i>
+                      </button>
+                    ) : null}
+                  </>
+                )}
                 <WidgetList
                   updateWidgets={updateWidgets}
                   handleDivClick={props.handleDivClick}
@@ -231,29 +251,7 @@ function WidgetComponent(props) {
               </div>
             </div>
           </div>
-        )
-      ) : (
-        <div
-          data-tut={props.dataTut}
-          className={`${
-            props.isMailSend ? "bg-opacity-50 pointer-events-none" : ""
-          } hidden md:block h-full bg-base-100`}
-        >
-          <div className="mx-2 pr-2 pt-2 pb-1 text-[15px] text-base-content font-semibold border-b-[1px] border-base-300">
-            <span>{t("fields")}</span>
-          </div>
-
-          <div className="widget-list-responsive flex whitespace-nowrap overflow-x-scroll pt-[10px] pb-[5px] pr-[5px] md:flex-col md:whitespace-normal md:overflow-x-visible md:overflow-y-auto md:p-[15px] md:pt-4 md:h-full md:max-h-[calc(100vh-200px)]" data-tut="addWidgets">
-            <WidgetList
-              updateWidgets={updateWidgets}
-              handleDivClick={props.handleDivClick}
-              handleMouseLeave={props.handleMouseLeave}
-              signRef={signRef}
-              addPositionOfSignature={props.addPositionOfSignature}
-            />
-          </div>
-        </div>
-      )}
+        )}
       {isSignersModal && (
         <ModalUi
           title={props.title ? props.title : t("recipients")}

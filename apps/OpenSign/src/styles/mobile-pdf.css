@@ -183,12 +183,12 @@ input, textarea, select {
 /* Mobile widget list - fill more container space */
 @media (max-width: 767px) {
   .widget-list-responsive {
-    height: calc(100% - 10px) !important; /* Fill container height minus minimal padding */
+    height: auto !important;
   }
 
   .widget-navbar {
-    height: 100%;
-    min-height: 120px;
+    height: auto;
+    min-height: auto;
     transform: translateY(0);
     transition: transform 0.3s ease;
   }
@@ -199,39 +199,27 @@ input, textarea, select {
   }
 
   .navbar-container {
-    height: 75%; /* Adjust navbar container height for mobile */
+    height: auto; /* Compact bar, one line with horizontal scroll */
   }
 
-  .widget-button-text {
-    display: none;
-  }
-
+  /* Same small buttons with text on mobile as desktop */
   .widget-button {
-    min-width: 50px;
-    width: auto;
-    min-height: 60px;
-    
-    padding: 8px;
-  }
-
-  .widget-button .text-\[20px\]{
-    display: flex;
-    width: 100%;
-    height: 100%;
+    min-width: auto;
+    min-height: auto;
+    padding: 0;
   }
 }
 
-/* Ensure proper scrolling behavior for desktop widget list */
+/* Keep widget list one line with horizontal scroll on all screen sizes */
 @media (min-width: 768px) {
   .widget-list-responsive {
-    height: 100% !important;
-    max-height: calc(100vh - 200px) !important;
-    overflow-y: auto !important;
-    overflow-x: visible !important;
-    flex-direction: column !important;
-    white-space: normal !important;
-    padding: 15px !important;
-    padding-top: 16px !important;
+    height: auto !important;
+    max-height: none !important;
+    overflow-y: visible !important;
+    overflow-x: auto !important;
+    flex-direction: row !important;
+    white-space: nowrap !important;
+    padding: 8px 12px !important;
   }
 }
 

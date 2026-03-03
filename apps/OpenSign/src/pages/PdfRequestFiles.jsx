@@ -70,6 +70,8 @@ import WidgetComponent from "../components/pdf/WidgetComponent";
 import PlaceholderCopy from "../components/pdf/PlaceholderCopy";
 import TextFontSetting from "../components/pdf/TextFontSetting";
 import WidgetsValueModal from "../components/pdf/WidgetsValueModal.jsx";
+import PaperPalChat from "../components/paperpal/PaperPalChat";
+import { useWindowSize } from "../hook/useWindowSize";
 
 function PdfRequestFiles(
 ) {
@@ -167,7 +169,8 @@ function PdfRequestFiles(
     drop: (item, monitor) => addPositionOfSignature(item, monitor),
     collect: (monitor) => ({ isOver: !!monitor.isOver() })
   });
-  const isMobile = window.innerWidth < 767;
+  const { width: windowWidth } = useWindowSize();
+  const isMobile = windowWidth > 0 && windowWidth < 767;
   let isGuestSignFlow = false;
   let sendmail;
   let getDocId = "";
@@ -216,7 +219,11 @@ function PdfRequestFiles(
 
     // Use setTimeout to wait for the transition to complete
     const timer = setTimeout(updateSize, 100);
-    return () => clearTimeout(timer);
+    window.addEventListener("resize", updateSize);
+    return () => {
+      clearTimeout(timer);
+      window.removeEventListener("resize", updateSize);
+    };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [divRef.current, isHeader]);
   const redirectUrl = pdfDetails?.[0]?.RedirectUrl || "";
@@ -2055,6 +2062,19 @@ function PdfRequestFiles(
             setFontColor={setFontColor}
             handleSaveFontSize={handleSaveFontSize}
             currWidgetsDetails={currWidgetsDetails}
+          />
+          <PaperPalChat
+            workflowState="signing"
+            documentId={documentId}
+            workflowData={{
+              isSigned,
+              currentSigner,
+              signerPos,
+              isCompleted,
+              pdfDetails,
+              signedSigners,
+              unsignedSigners,
+            }}
           />
     </DndProvider>
   );

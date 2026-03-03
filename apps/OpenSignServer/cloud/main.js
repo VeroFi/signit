@@ -59,6 +59,7 @@ import verifyIdLogin from './parsefunction/verifyIdLogin.js';
 import checkVerifyIdSubscription from './parsefunction/checkVerifyIdSubscription.js';
 import createUserSession from './parsefunction/createUserSession.js';
 import readBySignIt from './parsefunction/readBySignIt.js';
+import paperpalChat from './parsefunction/paperpalChat.js';
 
 // This afterSave function triggers after an object is added or updated in the specified class, allowing for post-processing logic.
 Parse.Cloud.afterSave('contracts_Document', DocumentAftersave);
@@ -128,3 +129,4 @@ Parse.Cloud.define('verifyidlogin', verifyIdLogin);
 Parse.Cloud.define('checkverifyidsubscription', checkVerifyIdSubscription);
 Parse.Cloud.define('createusersession', createUserSession);
 Parse.Cloud.define('readBySignIt', readBySignIt);
+Parse.Cloud.define('paperpalChat', paperpalChat);

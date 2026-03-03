@@ -6,7 +6,7 @@ function WidgetList(props) {
   const { t } = useTranslation();
   return props.updateWidgets.map((item, ind) => {
     return (
-      <div className="2xl:p-1 mb-[5px]" key={ind}>
+      <div className="shrink-0" key={ind}>
         <div
           data-tut="isSignatureWidget"
           className="select-none mx-[2px] md:mx-0 cursor-all-scroll"

@@ -609,7 +609,7 @@ export default async function readBySignIt(request) {
 
     // Return all extracted data in order: text, layout, forms, tables
     // Note: Currently only forms are highlighted in the UI, but all data is available
-    return {
+    const result = {
       success: true,
       text: extracted.text,
       layout: extracted.layout,
@@ -617,6 +617,25 @@ export default async function readBySignIt(request) {
       tables: extracted.tables,
       count: extracted.forms.length,
     };
+
+    // Cache full Textract results for PaperPal™ to use (avoids re-running Textract)
+    // Store in in-memory cache (1-hour TTL)
+    // Don't await - make it non-blocking so it doesn't delay the response
+    try {
+      const { storeFullTextractResults } = await import('../services/documentContextService.js');
+      storeFullTextractResults(documentId, result).catch(cacheError => {
+        // Non-critical - if caching fails, log and continue
+        console.warn(
+          '[readBySignIt] Could not cache Textract results for PaperPal™:',
+          cacheError.message
+        );
+      });
+    } catch (importError) {
+      // Non-critical - if import fails, continue anyway
+      console.warn('[readBySignIt] Could not import cache service:', importError.message);
+    }
+
+    return result;
   } catch (error) {
     console.error('[readBySignIt] Error:', error);
 

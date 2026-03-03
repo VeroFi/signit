@@ -7,6 +7,7 @@ import { saveTourSteps } from "../redux/reducers/TourStepsReducer";
 import dashboardJson from "../json/dashboardJson";
 import Loader from "../primitives/Loader";
 import { useTranslation } from "react-i18next";
+import PaperPalChat from "../components/paperpal/PaperPalChat";
 
 const Dashboard = () => {
   const { t } = useTranslation();
@@ -65,6 +66,7 @@ const Dashboard = () => {
       ) : (
         <GetDashboard dashboard={dashboard} />
       )}
+      <PaperPalChat workflowState="dashboard" documentId={null} pageContext={null} />
     </React.Fragment>
   );
 };

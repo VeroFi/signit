@@ -4,6 +4,7 @@ import ShowTenant from "./reducers/ShowTenant";
 import TourStepsReducer from "./reducers/TourStepsReducer";
 import showHeader from "./reducers/showHeader";
 import widgetReducer from "./reducers/widgetSlice";
+import paperpalReducer from "./reducers/paperpalSlice";
 
 export const store = configureStore({
   reducer: {
@@ -11,6 +12,7 @@ export const store = configureStore({
     TourSteps: TourStepsReducer,
     ShowTenant,
     showHeader,
-    widget: widgetReducer
+    widget: widgetReducer,
+    paperpal: paperpalReducer
   }
 });

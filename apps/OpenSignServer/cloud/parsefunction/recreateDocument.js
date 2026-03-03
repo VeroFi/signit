@@ -18,7 +18,23 @@ export default async function recreateDocument(request) {
       throw new Parse.Error(Parse.Error.INVALID_SESSION_TOKEN, 'Signyourself Document not allowed');
     }
     const _docRes = doc?.toJSON();
-    const { objectId, SignedUrl, AuditTrail, ACL, DeclineBy, DeclineReason, ...docRes } = _docRes;
+    // Exclude fields that shouldn't be copied to the new document:
+    // - SignedUrl, AuditTrail: Signing history
+    // - ACL: Access control (will be reset)
+    // - DeclineBy, DeclineReason: Decline information
+    // - TextractData, TextractTimestamp, HasFullTextract: Textract fields (if they exist, exclude them)
+    const {
+      objectId,
+      SignedUrl,
+      AuditTrail,
+      ACL,
+      DeclineBy,
+      DeclineReason,
+      TextractData,
+      TextractTimestamp,
+      HasFullTextract,
+      ...docRes
+    } = _docRes;
     const createDoc = new Parse.Object('contracts_Document');
     Object.entries(docRes).forEach(([key, value]) => {
       if (key === 'IsDeclined' || key === 'IsCompleted') {

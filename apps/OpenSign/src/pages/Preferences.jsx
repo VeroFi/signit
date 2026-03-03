@@ -21,6 +21,7 @@ import EditorToolbar, {
   formats
 } from "../components/pdf/EditorToolbar";
 import DateFormatSelector from "../components/shared/fields/DateFormatSelector";
+import PaperPalChat from "../components/paperpal/PaperPalChat";
 
 const Preferences = () => {
   const appName =
@@ -1088,6 +1089,7 @@ const Preferences = () => {
           )}
         </>
       )}
+      <PaperPalChat workflowState="dashboard" pageContext="preferences" />
     </React.Fragment>
   );
 };

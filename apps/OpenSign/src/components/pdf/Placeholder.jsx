@@ -770,7 +770,7 @@ function Placeholder(props) {
             fontFamily: "Arial, sans-serif",
             position: "absolute",
             left: xPos(props.pos, props.isSignYourself),
-            top: yPos(props.pos, props.isSignYourself),
+            top: yPos(props.pos, props.isSignYourself) + (props.pageOffsetY || 0),
             fontSize: fontSize,
             color: fontColor,
             zIndex: 99
@@ -875,7 +875,7 @@ function Placeholder(props) {
               props.showGuidelines(
                 true,
                 xPos(props.pos, props.isSignYourself),
-                yPos(props.pos, props.isSignYourself),
+                yPos(props.pos, props.isSignYourself) + (props.pageOffsetY || 0),
                 ref.offsetWidth,
                 ref.offsetHeight
               );
@@ -914,7 +914,8 @@ function Placeholder(props) {
                 event,
                 dragElement,
                 props.data?.Id,
-                props.pos?.key
+                props.pos?.key,
+                { pageOffsetY: props.pageOffsetY || 0, pageNumber: props.pageNumber }
               );
             props.isDragging &&
               props.showGuidelines &&
@@ -922,7 +923,7 @@ function Placeholder(props) {
           }}
           position={{
             x: xPos(props.pos, props.isSignYourself),
-            y: yPos(props.pos, props.isSignYourself)
+            y: yPos(props.pos, props.isSignYourself) + (props.pageOffsetY || 0)
           }}
           disableDragging={handleDragging()}
         >
@@ -974,7 +975,7 @@ function Placeholder(props) {
             className="flex items-stretch justify-center"
             style={{
               left: xPos(props.pos, props.isSignYourself),
-              top: yPos(props.pos, props.isSignYourself),
+              top: yPos(props.pos, props.isSignYourself) + (props.pageOffsetY || 0),
               width: "100%",
               height: "100%",
               zIndex: "10"

@@ -15,6 +15,7 @@ import Tour from "../primitives/Tour";
 import axios from "axios";
 import Loader from "../primitives/Loader";
 import { useTranslation } from "react-i18next";
+import PaperPalChat from "../components/paperpal/PaperPalChat";
 
 const DriveBody = React.lazy(
   () => import("../components/opensigndrive/DriveBody")
@@ -899,6 +900,7 @@ function Opensigndrive() {
           )}
         </>
       )}
+      <PaperPalChat workflowState="dashboard" pageContext="drive" />
     </div>
   );
 }

@@ -20,13 +20,15 @@ import PageReorderModal from "./PageReorderModal";
 import { useTranslation } from "react-i18next";
 import { PDFDocument } from "pdf-lib";
 import { maxFileSize } from "../../constant/const";
+import { useWindowSize } from "../../hook/useWindowSize";
 
 function Header(props) {
   const { t } = useTranslation();
+  const { width: windowWidth } = useWindowSize();
+  const isMobile = windowWidth > 0 && windowWidth < 767;
   const filterPrefill =
     props?.signerPos &&
     props?.signerPos?.filter((data) => data.Role !== "prefill");
-  const isMobile = window.innerWidth < 767;
   const [isDownloading, setIsDownloading] = useState("");
   const [isDeletePage, setIsDeletePage] = useState(false);
   const [isReorderModal, setIsReorderModal] = useState(false);
@@ -164,317 +166,179 @@ function Header(props) {
   };
   return (
     <div className="flex py-[5px]">
-      {isMobile && props?.isShowHeader ? (
+      {/* Same toolbar for mobile and desktop (Tools, page nav, Auto-detect, Back/Next) to avoid overlap and match layout */}
+      {(!isMobile || props?.isShowHeader) && (
         <div
-          id="navbar"
-          className="stickyHead touch-none"
-          style={{
-            width: window.innerWidth + "px"
-          }}
+          className="flex flex-wrap items-center w-full justify-between gap-x-3 gap-y-2 ml-1 min-w-0"
+          style={isMobile && props?.isShowHeader ? { width: windowWidth + "px" } : undefined}
         >
-          <div className="flex justify-between items-center py-[5px] pl-[10px] ">
-            <div onClick={() => window.history.go(-2)}>
-              <i
-                className="fa-light fa-arrow-left text-base-content"
-                aria-hidden="true"
-              ></i>
-            </div>
-            <PrevNext
-              pageNumber={props?.pageNumber}
-              allPages={props?.allPages}
-              changePage={props?.changePage}
-            />
-            {props?.isCompleted || props?.alreadySign ? (
-              <DropdownMenu.Root>
-                <DropdownMenu.Trigger asChild>
-                  <div className="op-link op-link-primary no-underline text-[16px] font-semibold px-3">
-                    <i
-                      className="fa-light fa-ellipsis-v"
-                      aria-hidden="true"
-                    ></i>
-                  </div>
-                </DropdownMenu.Trigger>
-                <DropdownMenu.Portal>
-                  <DropdownMenu.Content
-                    className="DropdownMenuContent"
-                    sideOffset={5}
-                  >
+          {/* Left: Tools + page numbers — never shrink, wrap to next line if needed */}
+          <div className="flex items-center gap-x-2 flex-shrink-0">
+          {props?.showToolsDropdown && (
+            <div className="flex-shrink-0">
+            <DropdownMenu.Root>
+              <DropdownMenu.Trigger asChild>
+                <button
+                  type="button"
+                  className="op-btn op-btn-ghost op-btn-sm border border-base-300 bg-base-200 hover:bg-base-300 whitespace-nowrap"
+                  title={t("Tools") || "Tools"}
+                >
+                  <i className="fa-light fa-ellipsis-v text-base-content text-lg mr-1" aria-hidden="true"></i>
+                  <span className="text-sm font-medium">{t("Tools") || "Tools"}</span>
+                </button>
+              </DropdownMenu.Trigger>
+              <DropdownMenu.Portal>
+                <DropdownMenu.Content
+                  className="DropdownMenuContent bg-base-100 shadow-lg rounded-md border border-base-300 min-w-[180px]"
+                  side="bottom"
+                  sideOffset={6}
+                  align="start"
+                >
+                  {(props?.pdfDetails != null || props?.pdfBase64 != null) && (
                     <DropdownMenu.Item
                       className="DropdownMenuItem"
                       onClick={() => {
                         if (props?.isCompleted) {
-                          props?.setIsDownloadModal(true);
+                          props?.setIsDownloadModal?.(true);
                         } else {
                           handleDownloadPdf(
                             props?.pdfDetails,
                             setIsDownloading,
-                            props.pdfBase64
+                            props?.pdfBase64
                           );
                         }
                       }}
                     >
-                      <div className="flex flex-row">
-                        <i
-                          className="fa-light fa-arrow-down mr-[3px]"
-                          aria-hidden="true"
-                        ></i>
-                        {t("download")}
+                      <div className="flex flex-row items-center gap-2">
+                        <i className="fa-light fa-arrow-down text-gray-500"></i>
+                        <span className="font-[500]">{t("download")}</span>
                       </div>
                     </DropdownMenu.Item>
-                    {props?.isCompleted && (
-                      <DropdownMenu.Item
-                        className="DropdownMenuItem"
-                        onClick={() =>
-                          handleDownloadCertificate(
-                            props?.pdfDetails,
-                            setIsDownloading
-                          )
-                        }
-                      >
-                        <div className="border-none bg-[#fff]">
-                          <i
-                            className="fa-light fa-award mr-[3px]"
-                            aria-hidden="true"
-                          ></i>
-                          {t("certificate")}
-                        </div>
-                      </DropdownMenu.Item>
-                    )}
-                    {props?.isSignYourself && (
-                      <DropdownMenu.Item
-                        className="DropdownMenuItem"
-                        onClick={() => props?.setIsEmail(true)}
-                      >
-                        <div className="flex flex-row">
-                          <i
-                            className="fa-light fa-envelope mr-[3px]"
-                            aria-hidden="true"
-                          ></i>
-                          {t("mail")}
-                        </div>
-                      </DropdownMenu.Item>
-                    )}
+                  )}
+                  {props?.onToolsPages != null && (
                     <DropdownMenu.Item
                       className="DropdownMenuItem"
-                      onClick={(e) =>
-                        handleToPrint(e, setIsDownloading, props?.pdfDetails)
-                      }
+                      onClick={() => props?.onToolsPages?.()}
                     >
-                      <div className="flex flex-row">
-                        <i
-                          className="fa-light fa-print mr-[3px]"
-                          aria-hidden="true"
-                        ></i>
-                        {t("print")}
+                      <div className="flex flex-row items-center gap-2">
+                        <i className="fa-light fa-file-lines text-gray-500"></i>
+                        <span className="font-[500]">{t("pages")}</span>
                       </div>
                     </DropdownMenu.Item>
-                  </DropdownMenu.Content>
-                </DropdownMenu.Portal>
-              </DropdownMenu.Root>
-            ) : (
-              <div className="flex justify-around items-center">
-                {/* current signer is checking user send request and check status of pdf sign than if current 
-                user exist than show finish button else no
-                */}
-                {props?.currentSigner && (
-                  <div className="flex items-center" data-tut="reactourFifth">
-                    {props?.decline && (
-                      <div
-                        onClick={() => handleDeclinePdfAlert()}
-                        className="text-[red] border-none font-[650] text-[14px] mr-2"
+                  )}
+                  {!props?.isDisableEditTools && (
+                    <>
+                      <DropdownMenu.Item
+                        className="DropdownMenuItem"
+                        onClick={() => props?.onToolsAddPages?.()}
                       >
-                        {t("decline")}
-                      </div>
-                    )}
-                    {props?.isPlaceholder ? (
-                      <div
-                        onClick={() => {
-                          if (!props?.isMailSend) {
-                            props?.alertSendEmail();
-                          }
-                        }}
-                        className={`${
-                          props?.isMailSend ? "" : "op-link-primary"
-                        } op-link no-underline font-[650] text-[14px]`}
-                        data-tut="headerArea"
-                      >
-                        {props?.completeBtnTitle
-                          ? props?.completeBtnTitle
-                          : t("send")}
-                      </div>
-                    ) : (
-                      <div
-                        data-tut="reactourThird"
-                        onClick={() => props?.embedWidgetsData()}
-                        className="border-none font-[650] text-[14px] op-link op-link-primary no-underline"
-                      >
-                        {t("finish")}
-                      </div>
-                    )}
-                    <input
-                      type="file"
-                      className="hidden"
-                      accept="application/pdf"
-                      ref={mergePdfInputRef}
-                      onChange={handleFileUpload}
-                    />
-                    <DropdownMenu.Root>
-                      <DropdownMenu.Trigger asChild>
-                        <div className="font-[650] text-[18px] px-3  text-base-content no-underline">
-                          <i
-                            className="fa-light fa-ellipsis-v"
-                            aria-hidden="true"
-                          ></i>
+                        <div className="flex flex-row items-center gap-2">
+                          <i className="fa-light fa-plus text-gray-500"></i>
+                          <span className="font-[500]">{t("add-pages")}</span>
                         </div>
-                      </DropdownMenu.Trigger>
-                      <DropdownMenu.Portal>
-                        <DropdownMenu.Content
-                          className="bg-white shadow-md rounded-md px-3 py-2"
-                          sideOffset={5}
-                        >
-                          {props?.setIsEditTemplate && (
-                            <DropdownMenu.Item
-                              className="DropdownMenuItem"
-                              onClick={() => props?.setIsEditTemplate(true)}
-                            >
-                              <div className="flex flex-row">
-                                <i
-                                  className="fa-light fa-gear mr-[3px]"
-                                  aria-hidden="true"
-                                ></i>
-                                <span className="font-[500]">{t("Edit")}</span>
-                              </div>
-                            </DropdownMenu.Item>
-                          )}
-                          <DropdownMenu.Item
-                            className="DropdownMenuItem"
-                            onClick={() =>
-                              handleDownloadPdf(
-                                props?.pdfDetails,
-                                setIsDownloading,
-                                props.pdfBase64
-                              )
-                            }
-                          >
-                            <div className="flex flex-row">
-                              <i
-                                className="fa-light fa-arrow-down mr-[3px]"
-                                aria-hidden="true"
-                              ></i>
-                              <span className="font-[500]">
-                                {t("download")}
-                              </span>
-                            </div>
-                          </DropdownMenu.Item>
-                          {!props?.isDisablePdfEditTools && (
-                            <>
-                              <DropdownMenu.Item
-                                className="DropdownMenuItem"
-                                onClick={() => mergePdfInputRef.current.click()}
-                              >
-                                <div className="flex flex-row">
-                                  <i className="fa-light fa-plus text-gray-500 2xl:text-[30px] mr-[3px]"></i>
-                                  <span className="font-[500]">
-                                    {t("add-pages")}
-                                  </span>
-                                </div>
-                              </DropdownMenu.Item>
-                              <DropdownMenu.Item
-                                className="DropdownMenuItem"
-                                onClick={() => setIsDeletePage(true)}
-                              >
-                                <div className="flex flex-row">
-                                  <i className="fa-light fa-trash text-gray-500 2xl:text-[30px] mr-[3px]"></i>
-                                  <span className="font-[500]">
-                                    {t("delete-page")}
-                                  </span>
-                                </div>
-                              </DropdownMenu.Item>
-                              <DropdownMenu.Item
-                                className="DropdownMenuItem"
-                                onClick={() => setIsReorderModal(true)}
-                              >
-                                <div className="flex flex-row">
-                                  <i className="fa-light fa-list-ol text-gray-500 2xl:text-[30px] mr-[3px]"></i>
-                                  <span className="font-[500]">
-                                    {t("reorder-pages")}
-                                  </span>
-                                </div>
-                              </DropdownMenu.Item>
-
-                              <DropdownMenu.Item
-                                className="DropdownMenuItem"
-                                onClick={() => props?.handleRotationFun(90)}
-                              >
-                                <div className="flex flex-row">
-                                  <i className="fa-light fa-rotate-right text-gray-500 2xl:text-[30px] mr-[3px]"></i>
-                                  <span className="font-[500]">
-                                    {t("rotate-right")}
-                                  </span>
-                                </div>
-                              </DropdownMenu.Item>
-                              <DropdownMenu.Item
-                                className="DropdownMenuItem"
-                                onClick={() => props?.handleRotationFun(-90)}
-                              >
-                                <div className="flex flex-row">
-                                  <i className="fa-light fa-rotate-left text-gray-500 2xl:text-[30px] mr-[3px]"></i>
-                                  <span className="font-[500]">
-                                    {t("rotate-left")}
-                                  </span>
-                                </div>
-                              </DropdownMenu.Item>
-                            </>
-                          )}
-
-                          <DropdownMenu.Item
-                            className="DropdownMenuItem"
-                            onClick={() => props?.clickOnZoomIn()}
-                          >
-                            <div className="flex flex-row">
-                              <i className="fa-light fa-magnifying-glass-plus text-gray-500 2xl:text-[30px] mr-[3px]"></i>
-                              <span className="font-[500]">{t("zoom-in")}</span>
-                            </div>
-                          </DropdownMenu.Item>
-                          <DropdownMenu.Item
-                            className="DropdownMenuItem"
-                            onClick={() => props?.clickOnZoomOut()}
-                          >
-                            <div className="flex flex-row">
-                              <i className="fa-light fa-magnifying-glass-minus text-gray-500 2xl:text-[30px] mr-[3px]"></i>
-                              <span className="font-[500]">
-                                {t("zoom-out")}
-                              </span>
-                            </div>
-                          </DropdownMenu.Item>
-                        </DropdownMenu.Content>
-                      </DropdownMenu.Portal>
-                    </DropdownMenu.Root>
-                  </div>
-                )}
-                {props?.isPublicTemplate && (
-                  <div
-                    data-tut="reactourThird"
-                    onClick={() => props?.embedWidgetsData()}
-                    className="border-none font-[650] text-[14px] pr-2 op-link op-link-primary no-underline"
+                      </DropdownMenu.Item>
+                      <DropdownMenu.Item
+                        className="DropdownMenuItem"
+                        onClick={() => props?.onToolsDeletePage?.()}
+                      >
+                        <div className="flex flex-row items-center gap-2">
+                          <i className="fa-light fa-trash text-gray-500"></i>
+                          <span className="font-[500]">{t("delete-page")}</span>
+                        </div>
+                      </DropdownMenu.Item>
+                      <DropdownMenu.Item
+                        className="DropdownMenuItem"
+                        onClick={() => props?.onToolsReorder?.()}
+                      >
+                        <div className="flex flex-row items-center gap-2">
+                          <i className="fa-light fa-list-ol text-gray-500"></i>
+                          <span className="font-[500]">{t("reorder-pages")}</span>
+                        </div>
+                      </DropdownMenu.Item>
+                      <DropdownMenu.Item
+                        className="DropdownMenuItem"
+                        onClick={() => props?.handleRotationFun?.(90)}
+                      >
+                        <div className="flex flex-row items-center gap-2">
+                          <i className="fa-light fa-rotate-right text-gray-500"></i>
+                          <span className="font-[500]">{t("rotate-right")}</span>
+                        </div>
+                      </DropdownMenu.Item>
+                      <DropdownMenu.Item
+                        className="DropdownMenuItem"
+                        onClick={() => props?.handleRotationFun?.(-90)}
+                      >
+                        <div className="flex flex-row items-center gap-2">
+                          <i className="fa-light fa-rotate-left text-gray-500"></i>
+                          <span className="font-[500]">{t("rotate-left")}</span>
+                        </div>
+                      </DropdownMenu.Item>
+                    </>
+                  )}
+                  <DropdownMenu.Item
+                    className="DropdownMenuItem"
+                    onClick={() => props?.clickOnZoomIn?.()}
                   >
-                    {t("sign-now")}
-                  </div>
-                )}
-              </div>
-            )}
-          </div>
-        </div>
-      ) : (
-        <div className="flex flex-wrap justify-between items-center w-full gap-y-1 ml-1">
+                    <div className="flex flex-row items-center gap-2">
+                      <i className="fa-light fa-magnifying-glass-plus text-gray-500"></i>
+                      <span className="font-[500]">{t("zoom-in")}</span>
+                    </div>
+                  </DropdownMenu.Item>
+                  <DropdownMenu.Item
+                    className="DropdownMenuItem"
+                    onClick={() => props?.clickOnZoomOut?.()}
+                    disabled={props?.zoomPercent != null && props.zoomPercent <= -90}
+                  >
+                    <div className="flex flex-row items-center gap-2">
+                      <i className="fa-light fa-magnifying-glass-minus text-gray-500"></i>
+                      <span className="font-[500]">{t("zoom-out")}</span>
+                    </div>
+                  </DropdownMenu.Item>
+                </DropdownMenu.Content>
+              </DropdownMenu.Portal>
+            </DropdownMenu.Root>
+            </div>
+          )}
+          <div className="flex-shrink-0 whitespace-nowrap">
           <PrevNext
             pageNumber={props?.pageNumber}
             allPages={props?.allPages}
             changePage={props?.changePage}
+            setPageNumber={props?.setPageNumber}
           />
+          </div>
+          </div>
+          {/* Center: Auto-Detect-Fields — never shrink, wrap to next line if needed */}
+          <div className="flex flex-shrink-0 justify-center min-w-0 px-2">
+          {props?.showAutoDetectFields && (
+            <div className="flex-shrink-0 whitespace-nowrap">
+              <button
+                onClick={props?.onAutoDetectFields}
+                disabled={props?.isDetectingFields}
+                type="button"
+                className="op-btn op-btn-sm bg-[#3579F7] text-white border-[#007ACC] hover:bg-[#006bb3] hover:border-[#006bb3] disabled:opacity-70 disabled:cursor-not-allowed whitespace-nowrap"
+                title={t("auto-detect-fields-tooltip") || "Automatically detect signature, date, and initial fields"}
+              >
+                {props?.isDetectingFields ? (
+                  <>
+                    <span className="loading loading-spinner loading-sm mr-2"></span>
+                    {t("detecting-fields") || "Detecting fields..."}
+                  </>
+                ) : (
+                  <>
+                    <i className="fa-light fa-magic-wand-sparkles mr-2"></i>
+                    {t("Auto-Detect-Fields") || "Auto-detect fields"}
+                  </>
+                )}
+              </button>
+            </div>
+          )}
+          </div>
+          {/* Right: Back + Next — never shrink, wraps to next line when no room */}
+          <div className="flex items-center gap-x-2 flex-shrink-0">
           {props?.isPlaceholder ? (
             <>
-              <div className="flex mx-[100px] lg:mx-0 order-last lg:order-none">
+              <div className="flex flex-shrink-0 order-last lg:order-none">
                 {!props?.isMailSend &&
                   props?.signersdata.length > 0 &&
                   props?.signersdata.length !== filterPrefill.length && (
@@ -496,7 +360,7 @@ function Header(props) {
                     </div>
                   )}
               </div>
-              <div className="flex">
+              <div className="flex flex-shrink-0">
                 {props?.setIsEditTemplate && (
                   <button
                     onClick={() => props?.setIsEditTemplate(true)}
@@ -530,7 +394,7 @@ function Header(props) {
             </>
           ) : props?.isPdfRequestFiles || props?.isSelfSign ? (
             props?.alreadySign || (props?.isSelfSign && props?.isCompleted) ? (
-              <div className="flex flex-row">
+              <div className="flex flex-row flex-shrink-0">
                 <button
                   onClick={(e) =>
                     handleToPrint(e, setIsDownloading, props?.pdfDetails)
@@ -585,7 +449,7 @@ function Header(props) {
                 </button>
               </div>
             ) : (
-              <div className="flex" data-tut="reactourFifth">
+              <div className="flex flex-shrink-0" data-tut="reactourFifth">
                 {props?.currentSigner && (
                   <>
                     {props?.templateId && (
@@ -639,7 +503,7 @@ function Header(props) {
               </div>
             )
           ) : props?.isCompleted ? (
-            <div className="flex flex-row">
+            <div className="flex flex-row flex-shrink-0">
               {props?.isCompleted && (
                 <button
                   type="button"
@@ -685,7 +549,7 @@ function Header(props) {
               </button>
             </div>
           ) : props?.isPublicTemplate ? (
-            <div className="flex">
+            <div className="flex flex-shrink-0">
               <button
                 type="button"
                 className="op-btn op-btn-primary op-btn-sm  shadow"
@@ -695,7 +559,7 @@ function Header(props) {
               </button>
             </div>
           ) : (
-            <div className="flex">
+            <div className="flex flex-shrink-0">
               <button
                 onClick={() => window.history.go(-2)}
                 type="button"
@@ -712,6 +576,7 @@ function Header(props) {
               </button>
             </div>
           )}
+          </div>
         </div>
       )}
       {isDownloading === "pdf" && (

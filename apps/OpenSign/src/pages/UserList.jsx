@@ -11,6 +11,7 @@ import Title from "../components/Title";
 import {
   useTranslation
 } from "react-i18next";
+import PaperPalChat from "../components/paperpal/PaperPalChat";
 const heading = ["Sr.No", "Name", "Email", "Phone", "Role", "Team", "Active"];
 const UserList = () => {
   const { t } = useTranslation();
@@ -399,6 +400,7 @@ const UserList = () => {
             </>
           )
       }
+      <PaperPalChat workflowState="dashboard" pageContext="users" />
     </div>
   );
 };

@@ -59,6 +59,8 @@ import TourContentWithBtn from "../primitives/TourContentWithBtn";
 import HandleError from "../primitives/HandleError";
 import LoaderWithMsg from "../primitives/LoaderWithMsg";
 import LinkUserModal from "../primitives/LinkUserModal";
+import PaperPalChat from "../components/paperpal/PaperPalChat";
+import { useWindowSize } from "../hook/useWindowSize";
 
 const TemplatePlaceholder = () => {
   const { t } = useTranslation();
@@ -109,7 +111,8 @@ const TemplatePlaceholder = () => {
   const [pdfLoad, setPdfLoad] = useState(false);
   const [pdfBase64Url, setPdfBase64Url] = useState("");
   const [isUploadPdf, setIsUploadPdf] = useState(false);
-  const isMobile = window.innerWidth < 767;
+  const { width: windowWidth } = useWindowSize();
+  const isMobile = windowWidth > 0 && windowWidth < 767;
   const [, drop] = useDrop({
     accept: "BOX",
     drop: (item, monitor) => addPositionOfSignature(item, monitor),
@@ -158,8 +161,11 @@ const TemplatePlaceholder = () => {
 
     // Use setTimeout to wait for the transition to complete
     const timer = setTimeout(updateSize, 100); // match the transition duration
-
-    return () => clearTimeout(timer);
+    window.addEventListener("resize", updateSize);
+    return () => {
+      clearTimeout(timer);
+      window.removeEventListener("resize", updateSize);
+    };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [divRef.current, isHeader]);
 
@@ -2028,6 +2034,7 @@ const TemplatePlaceholder = () => {
           setShowRotateAlert={setShowRotateAlert}
           handleRemoveWidgets={handleRemovePlaceholder}
         />
+        <PaperPalChat workflowState="editing" documentId={templateId} />
       </DndProvider>
     </>
   );

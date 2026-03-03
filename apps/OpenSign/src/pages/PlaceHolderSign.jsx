@@ -14,7 +14,6 @@ import RenderAllPdfPage from "../components/pdf/RenderAllPdfPage";
 import WidgetComponent from "../components/pdf/WidgetComponent";
 import Tour from "../primitives/Tour";
 import { useLocation, useParams } from "react-router";
-import SignerListPlace from "../components/pdf/SignerListPlace";
 import Header from "../components/pdf/PdfHeader";
 import ShareButton from "../primitives/ShareButton";
 import {
@@ -36,6 +35,7 @@ import {
   copytoData,
   convertPdfArrayBuffer,
   getContainerScale,
+  getFitToPageScale,
   convertBase64ToFile,
   onClickZoomIn,
   onClickZoomOut,
@@ -68,10 +68,12 @@ import LoaderWithMsg from "../primitives/LoaderWithMsg";
 import LinkUserModal from "../primitives/LinkUserModal";
 import { EmailBody } from "../components/pdf/EmailBody";
 import LottieWithLoader from "../primitives/DotLottieReact";
+import { useWindowSize } from "../hook/useWindowSize";
 import Alert from "../primitives/Alert";
 import AsyncSelect from "react-select/async";
 import AddContact from "../primitives/AddContact";
 import WidgetsValueModal from "../components/pdf/WidgetsValueModal.jsx";
+import PaperPalChat from "../components/paperpal/PaperPalChat";
 
 function PlaceHolderSign() {
   const { t } = useTranslation();
@@ -154,6 +156,7 @@ function PlaceHolderSign() {
   const [notificationPosition, setNotificationPosition] = useState({ x: 0, y: 0 });
   const [isDraggingNotification, setIsDraggingNotification] = useState(false);
   const notificationRef = useRef(null);
+  const pdfZoomRef = useRef(null);
   const [textractForms, setTextractForms] = useState([]);
   const [currentFormIndex, setCurrentFormIndex] = useState(0);
   const [dismissedFormIds, setDismissedFormIds] = useState(new Set());
@@ -173,6 +176,7 @@ function PlaceHolderSign() {
   });
   const [isCustomize, setIsCustomize] = useState(false);
   const [zoomPercent, setZoomPercent] = useState(0);
+  const [showPagesOverlay, setShowPagesOverlay] = useState(false);
   const [scale, setScale] = useState(1);
   const [pdfBase64Url, setPdfBase64Url] = useState("");
   const [unSignedWidgetId, setUnSignedWidgetId] = useState("");
@@ -186,7 +190,8 @@ function PlaceHolderSign() {
   const [isNewContact, setIsNewContact] = useState({ status: false, id: "" });
   const [owner, setOwner] = useState({});
   const [docTitle, setDocTitle] = useState("");
-  const isMobile = window.innerWidth < 767;
+  const { width: windowWidth } = useWindowSize();
+  const isMobile = windowWidth > 0 && windowWidth < 767;
   const [, drop] = useDrop({
     accept: "BOX",
     drop: (item, monitor) => addPositionOfSignature(item, monitor),
@@ -342,15 +347,74 @@ function PlaceHolderSign() {
           width: divRef.current.offsetWidth,
           height: divRef.current.offsetHeight
         });
-        setScale(1);
-        setZoomPercent(0);
       }
     };
     // Use setTimeout to wait for the transition to complete
     const timer = setTimeout(updateSize, 100);
-    return () => clearTimeout(timer);
+    window.addEventListener("resize", updateSize);
+    return () => {
+      clearTimeout(timer);
+      window.removeEventListener("resize", updateSize);
+    };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [divRef.current, isHeader]);
+
+  // ResizeObserver: update container size whenever the PDF area actually resizes (e.g. after
+  // sidebar open/close or when layout settles on initial load with sidebar closed)
+  useEffect(() => {
+    const el = divRef.current;
+    if (!el) return;
+    const updateSize = () => {
+      const pdfWidth = pdfNewWidthFun(divRef);
+      setPdfNewWidth(pdfWidth);
+      setContainerWH({
+        width: el.offsetWidth,
+        height: el.offsetHeight
+      });
+    };
+    const ro = new ResizeObserver(() => updateSize());
+    ro.observe(el);
+    return () => ro.disconnect();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isHeader]);
+
+  // Fit whole page in view — always read container size from DOM when PDF is ready or sidebar
+  // changes, so layout is correct regardless of sidebar open/closed or load order.
+  useEffect(() => {
+    if (!pdfOriginalWH?.length) return;
+    let rafId;
+    let t1;
+    let t2;
+    const readAndFit = () => {
+      const el = divRef.current;
+      if (!el) return;
+      const w = el.offsetWidth;
+      const h = el.offsetHeight;
+      if (!w || !h) return;
+      setPdfNewWidth(pdfNewWidthFun(divRef));
+      setContainerWH({ width: w, height: h });
+      const { scale: fitScale, zoomPercent: fitZoomPercent } = getFitToPageScale(
+        pdfOriginalWH,
+        { width: w, height: h },
+        1
+      );
+      setScale(fitScale);
+      setZoomPercent(fitZoomPercent);
+    };
+    rafId = requestAnimationFrame(() => {
+      readAndFit();
+      t1 = setTimeout(readAndFit, 50);
+      t2 = setTimeout(readAndFit, 200);
+    });
+    window.addEventListener("resize", readAndFit);
+    return () => {
+      cancelAnimationFrame(rafId);
+      if (t1 != null) clearTimeout(t1);
+      if (t2 != null) clearTimeout(t2);
+      window.removeEventListener("resize", readAndFit);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [pdfOriginalWH, isHeader]);
   //function for get document details
   const getDocumentDetails = async () => {
     const tenantSignTypes = await fetchTenantDetails();
@@ -829,7 +893,7 @@ function PlaceHolderSign() {
   };
 
   //function for set and update x and y postion after drag and drop signature tab
-  const handleStop = (event, dragElement, signerId, key) => {
+  const handleStop = (event, dragElement, signerId, key, options) => {
     setFontColor();
     setFontSize();
     if (!isResize && isDragging) {
@@ -838,9 +902,11 @@ function PlaceHolderSign() {
       updateSignPos.splice(0, updateSignPos.length, ...dataNewPlace);
       const signId = signerId ? signerId : uniqueId; //? signerId : signerObjId;
       const keyValue = key ? key : dragKey;
+      const widgetPageNumber = options?.pageNumber ?? pageNumber;
+      const pageOffsetY = options?.pageOffsetY ?? 0;
       const containerScale = getContainerScale(
         pdfOriginalWH,
-        pageNumber,
+        widgetPageNumber,
         containerWH
       );
       if (keyValue >= 0) {
@@ -856,7 +922,7 @@ function PlaceHolderSign() {
         if (filterSignerPos.length > 0) {
           const getPlaceHolder = filterSignerPos[0].placeHolder;
           const getPageNumer = getPlaceHolder.filter(
-            (data) => data.pageNumber === pageNumber
+            (data) => data.pageNumber === widgetPageNumber
           );
           if (getPageNumer.length > 0) {
             const getXYdata = getPageNumer[0].pos;
@@ -866,14 +932,14 @@ function PlaceHolderSign() {
                 return {
                   ...url,
                   xPosition: dragElement.x / (containerScale * scale),
-                  yPosition: dragElement.y / (containerScale * scale)
+                  yPosition: (dragElement.y - pageOffsetY) / (containerScale * scale)
                 };
               }
               return url;
             });
 
             const newUpdateSignPos = getPlaceHolder.map((obj) => {
-              if (obj.pageNumber === pageNumber) {
+              if (obj.pageNumber === widgetPageNumber) {
                 return { ...obj, pos: addSignPos };
               }
               return obj;
@@ -2669,6 +2735,10 @@ function PlaceHolderSign() {
     }
     setIsAttchSignerModal(false);
   };
+  // Pages panel (left): set to false to show
+  const HIDE_PAGES = true;
+  // Recipients/Fields sidebar (right): set to true to hide
+  const HIDE_RECIPIENTS_FIELDS = false;
   return (
     <>
       <Title title={state?.title ? state.title : "New Document"} />
@@ -2678,7 +2748,7 @@ function PlaceHolderSign() {
         ) : handleError ? (
           <HandleError handleError={handleError} />
         ) : (
-          <div>
+          <div className={HIDE_RECIPIENTS_FIELDS ? "-m-3" : ""}>
             {isUiLoading && (
               <div className="absolute h-[100vh] w-full flex flex-col justify-center items-center z-[999] bg-[#e6f2f2] bg-opacity-80">
                 <Loader />
@@ -2687,7 +2757,7 @@ function PlaceHolderSign() {
                 </span>
               </div>
             )}
-            <div className="relative op-card overflow-hidden flex flex-col md:flex-row justify-between bg-base-300">
+            <div className="relative op-card overflow-hidden flex flex-col md:flex-row justify-between bg-base-300 w-full">
               {/* this component used for UI interaction and show their functionality */}
               {!checkTourStatus && !isAttchSignerModal && (
                 <Tour
@@ -2719,24 +2789,10 @@ function PlaceHolderSign() {
                 rounded={5}
                 closeWithMask={false}
               />
-              {/* this component used to render all pdf pages in left side */}
-              <RenderAllPdfPage
-                allPages={allPages}
-                setAllPages={setAllPages}
-                setPageNumber={setPageNumber}
-                setSignBtnPosition={setSignBtnPosition}
-                pageNumber={pageNumber}
-                pdfBase64Url={pdfBase64Url}
-                signedUrl={pdfDetails?.[0]?.SignedUrl || ""}
-                setPdfArrayBuffer={setPdfArrayBuffer}
-                setPdfBase64Url={setPdfBase64Url}
-                setIsUploadPdf={setIsUploadPdf}
-                pdfArrayBuffer={pdfArrayBuffer}
-                isMergePdfBtn={true}
-              />
-              {/* pdf render view */}
-              <div className=" w-full md:w-[57%] flex mr-4">
+              {/* pdf render view — grows to fill space beside sidebar (no gray strip) */}
+              <div className={`w-full flex mr-4 md:min-w-0 md:flex-1`}>
                 <PdfZoom
+                  ref={pdfZoomRef}
                   clickOnZoomIn={clickOnZoomIn}
                   clickOnZoomOut={clickOnZoomOut}
                   handleRotationFun={handleRotationFun}
@@ -2752,7 +2808,7 @@ function PlaceHolderSign() {
                   setAllPages={setAllPages}
                   setPageNumber={setPageNumber}
                 />
-                <div className=" w-full md:w-[95%] ">
+                <div className="w-full">
                   {/* this modal is used show alert set placeholder for all signers before send mail */}
                   <ModalUi
                     isOpen={
@@ -3127,33 +3183,8 @@ function PlaceHolderSign() {
                     setFontColor={setFontColor}
                     isShowAdvanceFeature={true}
                   />
-
-                  {/* Auto-detect fields button */}
-                  {pdfBase64Url && signersdata.length > 0 && !pdfDetails?.[0]?.IsCompleted && (
-                    <div className="mb-2 px-2">
-                      <button
-                        onClick={handleAutoDetectFields}
-                        disabled={isDetectingFields}
-                        type="button"
-                        className="op-btn op-btn-primary op-btn-sm w-full"
-                        title={t("auto-detect-fields-tooltip") || "Automatically detect signature, date, and initial fields"}
-                      >
-                        {isDetectingFields ? (
-                          <>
-                            <span className="loading loading-spinner loading-sm mr-2"></span>
-                            {t("detecting-fields") || "Detecting fields..."}
-                          </>
-                        ) : (
-                          <>
-                            <i className="fa-light fa-magic-wand-sparkles mr-2"></i>
-                            {t("auto-detect-fields") || "Auto-detect fields"}
-                          </>
-                        )}
-                      </button>
-                      {detectError && (
-                        <div className="text-red-500 text-sm mt-1">{detectError}</div>
-                      )}
-                    </div>
+                  {detectError && (
+                    <div className="mb-2 px-2 text-red-500 text-sm">{detectError}</div>
                   )}
 
                   {/* Detected Fields Notification */}
@@ -3275,6 +3306,7 @@ function PlaceHolderSign() {
                     pageNumber={pageNumber}
                     allPages={allPages}
                     changePage={changePage}
+                    setPageNumber={setPageNumber}
                     pdfDetails={pdfDetails}
                     signerPos={signerPos}
                     signersdata={signersdata}
@@ -3292,6 +3324,16 @@ function PlaceHolderSign() {
                     setSignerPos={setSignerPos}
                     userId={uniqueId}
                     pdfBase64={pdfBase64Url}
+                    showAutoDetectFields={!!(pdfBase64Url && signersdata.length > 0 && !pdfDetails?.[0]?.IsCompleted)}
+                    onAutoDetectFields={handleAutoDetectFields}
+                    isDetectingFields={isDetectingFields}
+                    showToolsDropdown={true}
+                    onToolsAddPages={() => pdfZoomRef.current?.openAddPages()}
+                    onToolsDeletePage={() => pdfZoomRef.current?.openDeletePageModal()}
+                    onToolsReorder={() => pdfZoomRef.current?.openReorderModal()}
+                    onToolsPages={() => setShowPagesOverlay(true)}
+                    isDisableEditTools={false}
+                    zoomPercent={zoomPercent}
                   />
 
                   <div
@@ -3302,6 +3344,7 @@ function PlaceHolderSign() {
                     {containerWH && (
                       <RenderPdf
                         pageNumber={pageNumber}
+                        allPages={allPages}
                         pdfNewWidth={pdfNewWidth}
                         pdfDetails={pdfDetails}
                         signerPos={signerPos}
@@ -3315,6 +3358,7 @@ function PlaceHolderSign() {
                         handleStop={handleStop}
                         setPdfLoad={setPdfLoad}
                         pdfLoad={pdfLoad}
+                        setAllPages={setAllPages}
                         setSignerPos={setSignerPos}
                         containerWH={containerWH}
                         setIsResize={setIsResize}
@@ -3350,85 +3394,76 @@ function PlaceHolderSign() {
                         divRef={divRef}
                         currWidgetsDetails={currWidgetsDetails}
                         highlightedFieldKey={highlightedFieldKey}
+                        setPageNumber={setPageNumber}
                       />
                     )}
-                  </div>
-                </div>
               </div>
+            </div>
+          </div>
 
-              {/* signature button */}
-              <div className="placeholder-sign-pdf-container w-full md:w-[23%] bg-base-100 overflow-y-auto hide-scrollbar">
-                <div className={`max-h-screen`}>
-                  {isMobile ? (
-                    <div>
-                      <WidgetComponent
-                        pdfUrl={isMailSend}
-                        handleDivClick={handleDivClick}
-                        handleMouseLeave={handleMouseLeave}
-                        isSignYourself={false}
-                        addPositionOfSignature={addPositionOfSignature}
-                        signerPos={signerPos}
-                        signersdata={signersdata}
-                        isSelectListId={isSelectListId}
-                        setIsSelectId={setIsSelectId}
-                        isSigners={true}
-                        setIsShowEmail={setIsShowEmail}
-                        isMailSend={isMailSend}
-                        setSelectedEmail={setSelectedEmail}
-                        selectedEmail={selectedEmail}
-                        setUniqueId={setUniqueId}
-                        setRoleName={setRoleName}
-                        initial={true}
-                        sendInOrder={pdfDetails[0].SendinOrder}
-                        setSignersData={setSignersData}
-                        blockColor={blockColor}
-                        setBlockColor={setBlockColor}
-                        setIsAddSigner={setIsAddSigner}
-                        handleDeleteUser={handleDeleteUser}
-                        uniqueId={uniqueId}
-                        setSignerPos={setSignerPos}
+              {/* Pages overlay: open from Tools → Pages */}
+              {showPagesOverlay && (
+                <div className="fixed inset-0 z-[100] flex" role="dialog" aria-modal="true" aria-label={t("pages")}>
+                  <div className="w-[280px] max-w-[85vw] mt-16 bg-base-100 shadow-2xl flex flex-col overflow-hidden">
+                    <div className="flex justify-between items-center px-3 py-2 border-b border-base-300 shrink-0">
+                      <span className="font-semibold text-base-content">{t("pages")}</span>
+                      <button type="button" onClick={() => setShowPagesOverlay(false)} className="op-btn op-btn-ghost op-btn-sm op-btn-square" aria-label={t("close")}>
+                        <i className="fa-light fa-times" />
+                      </button>
+                    </div>
+                    <div className="flex-1 min-h-0 overflow-hidden">
+                      <RenderAllPdfPage
+                        asOverlay
+                        allPages={allPages}
+                        setAllPages={setAllPages}
+                        setPageNumber={setPageNumber}
+                        onPageSelect={() => setTimeout(() => setShowPagesOverlay(false), 120)}
+                        setSignBtnPosition={setSignBtnPosition}
+                        pageNumber={pageNumber}
+                        pdfBase64Url={pdfBase64Url}
+                        signedUrl={pdfDetails?.[0]?.SignedUrl || ""}
+                        setPdfArrayBuffer={setPdfArrayBuffer}
+                        setPdfBase64Url={setPdfBase64Url}
+                        setIsUploadPdf={setIsUploadPdf}
+                        pdfArrayBuffer={pdfArrayBuffer}
+                        isMergePdfBtn={true}
                       />
                     </div>
-                  ) : (
-                    <div>
-                      <div
-                        className="hidden md:block w-full h-full bg-base-100"
-                        aria-disabled
-                      >
-                        <SignerListPlace
-                          setSignerPos={setSignerPos}
-                          signerPos={signerPos}
-                          signersdata={signersdata}
-                          isSelectListId={isSelectListId}
-                          setIsSelectId={setIsSelectId}
-                          setUniqueId={setUniqueId}
-                          setRoleName={setRoleName}
-                          sendInOrder={pdfDetails[0].SendinOrder}
-                          setSignersData={setSignersData}
-                          blockColor={blockColor}
-                          setBlockColor={setBlockColor}
-                          isMailSend={isMailSend}
-                          setIsAddSigner={setIsAddSigner}
-                          handleDeleteUser={handleDeleteUser}
-                          roleName={roleName}
-                          uniqueId={uniqueId}
-                          // handleAddSigner={handleAddSigner}
-                        />
-                        <div data-tut="addWidgets">
-                          <WidgetComponent
-                            isMailSend={isMailSend}
-                            handleDivClick={handleDivClick}
-                            handleMouseLeave={handleMouseLeave}
-                            isSignYourself={false}
-                            addPositionOfSignature={addPositionOfSignature}
-                            initial={true}
-                          />
-                        </div>
-                      </div>
-                    </div>
-                  )}
+                  </div>
+                  <div className="flex-1 bg-black/40" onClick={() => setShowPagesOverlay(false)} aria-hidden="true" />
                 </div>
-              </div>
+              )}
+
+              {/* Recipients and Fields: same bottom bar on every screen (no sidebar); hidden when HIDE_RECIPIENTS_FIELDS */}
+              {!HIDE_RECIPIENTS_FIELDS && pdfDetails?.[0] && (
+                <WidgetComponent
+                  pdfUrl={isMailSend}
+                  handleDivClick={handleDivClick}
+                  handleMouseLeave={handleMouseLeave}
+                  isSignYourself={false}
+                  addPositionOfSignature={addPositionOfSignature}
+                  signerPos={signerPos}
+                  signersdata={signersdata}
+                  isSelectListId={isSelectListId}
+                  setIsSelectId={setIsSelectId}
+                  isSigners={true}
+                  setIsShowEmail={setIsShowEmail}
+                  isMailSend={isMailSend}
+                  setSelectedEmail={setSelectedEmail}
+                  selectedEmail={selectedEmail}
+                  setUniqueId={setUniqueId}
+                  setRoleName={setRoleName}
+                  initial={true}
+                  sendInOrder={pdfDetails[0].SendinOrder}
+                  setSignersData={setSignersData}
+                  blockColor={blockColor}
+                  setBlockColor={setBlockColor}
+                  setIsAddSigner={setIsAddSigner}
+                  handleDeleteUser={handleDeleteUser}
+                  uniqueId={uniqueId}
+                  setSignerPos={setSignerPos}
+                />
+              )}
             </div>
           </div>
         )}
@@ -3493,6 +3528,19 @@ function PlaceHolderSign() {
           showRotateAlert={showRotateAlert.status}
           setShowRotateAlert={setShowRotateAlert}
           handleRemoveWidgets={handleRemovePlaceholder}
+        />
+        <PaperPalChat
+          workflowState="editing"
+          documentId={documentId}
+          pageContext={null}
+          workflowData={{
+            pageNumber,
+            signerPos,
+            textractForms,
+            isDetectingFields,
+            pdfDetails,
+            signersdata,
+          }}
         />
       </DndProvider>
     </>
